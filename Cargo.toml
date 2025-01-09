@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
+crossbeam-channel = "0.5.14"
 fs2 = "0.4.3"
 log = "0.4.22"
 ratatui = "0.29.0"

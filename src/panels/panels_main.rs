@@ -6,8 +6,11 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
+use tokio::sync::mpsc;
+use tokio::task;
 
-use crate::panels::{panel_brief, panel_devices, panel_error};
+use crate::msg::Msg;
+use crate::panels::{panel_brief, panel_devices, panel_error, panel_log};
 
 #[derive(PartialEq)]
 pub enum RetKey {
@@ -27,6 +30,7 @@ pub trait Panel {
     fn title(&self) -> &str;
     fn input(&self) -> &str;
     fn output(&self) -> &Vec<String>;
+    fn output_clear(&mut self);
     fn output_push(&mut self, output: String);
     fn key(&mut self, key: KeyEvent) -> RetKey;
     fn run(&mut self, _cmd: &str) -> RetKey {
@@ -38,19 +42,36 @@ pub trait Panel {
 pub struct Panels {
     pub panels: Vec<Box<dyn Panel>>,
     active_panel: usize,
+    msg_rx: mpsc::Receiver<Msg>,
+    key_rx: mpsc::Receiver<Event>,
 }
 
 impl Panels {
-    pub fn new() -> Self {
+    pub fn new(msg_rx: mpsc::Receiver<Msg>) -> Self {
         let panels = vec![
+            Box::new(panel_log::Panel::new()) as Box<dyn Panel>,
             Box::new(panel_brief::Panel::new()) as Box<dyn Panel>,
             Box::new(panel_devices::Panel::new()) as Box<dyn Panel>,
             Box::new(panel_error::Panel::new()) as Box<dyn Panel>,
         ];
 
+        let (key_tx, key_rx) = mpsc::channel(32);
+
+        tokio::spawn(async move {
+            loop {
+                if let Ok(event) = task::spawn_blocking(event::read).await.unwrap() {
+                    if key_tx.send(event.clone()).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        });
+
         Self {
             panels,
-            active_panel: 0,
+            active_panel: 1, // panel_brief
+            msg_rx,
+            key_rx,
         }
     }
 
@@ -65,6 +86,7 @@ impl Panels {
             .constraints([Constraint::Percentage(90), Constraint::Length(1)])
             .split(frame.area());
 
+        // area_command
         let [area_top, area_command] = [layout[0], layout[1]];
 
         let layout = Layout::default()
@@ -72,13 +94,21 @@ impl Panels {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(area_top);
 
-        let [area_brief, area_right] = [layout[0], layout[1]];
+        // area_left, area_right
+        let [area_left, area_right] = [layout[0], layout[1]];
 
+        // area_log, area_brief
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+            .split(area_left);
+        let [area_log, area_brief] = [layout[0], layout[1]];
+
+        // area_info, area_error
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(area_right);
-
         let [area_info, area_error] = [layout[0], layout[1]];
 
         for (index, window) in self.panels.iter().enumerate() {
@@ -97,6 +127,7 @@ impl Panels {
                 });
 
             let area_height = match window.title() {
+                panel_log::TITLE => area_log.height,
                 panel_brief::TITLE => area_brief.height,
                 panel_devices::TITLE => area_info.height,
                 panel_error::TITLE => area_error.height,
@@ -115,6 +146,7 @@ impl Panels {
             frame.render_widget(
                 paragraph,
                 match window.title() {
+                    panel_log::TITLE => area_log,
                     panel_brief::TITLE => area_brief,
                     panel_devices::TITLE => area_info,
                     panel_error::TITLE => area_error,
@@ -156,15 +188,35 @@ impl Panels {
         ));
     }
 
-    pub fn key(&mut self) -> RetKey {
+    pub async fn key(&mut self) -> RetKey {
         let mut ret = RetKey::RKContinue;
-        if let Event::Key(key) = event::read().unwrap() {
-            match key.code {
-                KeyCode::Tab => {
-                    self.next_window();
+
+        tokio::select! {
+            // Msg::Log handler
+            Some(msg) = self.msg_rx.recv() => {
+                match msg {
+                    Msg::Log(log) => {
+                        self.log(log.level, log.msg.as_str());
+                    }
+                    Msg::Devices(devices) => {
+                        self.get_panel_mut(panel_devices::TITLE).output_clear();
+                        self.get_panel_mut(panel_devices::TITLE).output_push("Name\tOnboard".to_string());
+                        for device in devices.iter() {
+                            self.get_panel_mut(panel_devices::TITLE).output_push(format!("{}\t{}", device.name, if device.onboard { "O" } else { "-"}));
+                        }
+                    }
                 }
-                _ => {
-                    ret = self.panels.get_mut(self.active_panel).unwrap().key(key);
+            }
+            Some(event) = self.key_rx.recv() => {
+                if let Event::Key(key) = event {
+                    match key.code {
+                        KeyCode::Tab => {
+                            self.next_window();
+                        }
+                        _ => {
+                            ret = self.panels.get_mut(self.active_panel).unwrap().key(key);
+                        }
+                    }
                 }
             }
         }
@@ -179,13 +231,16 @@ impl Panels {
             .unwrap_or_else(|| panic!("Panel not found: {}", name))
     }
 
-    pub fn log(&mut self, level: log::Level, msg: &str) {
+    fn log(&mut self, level: log::Level, msg: &str) {
         match level {
+            log::Level::Info => self
+                .get_panel_mut(panel_brief::TITLE)
+                .output_push(msg.to_owned()),
+            log::Level::Debug | log::Level::Trace => self
+                .get_panel_mut(panel_log::TITLE)
+                .output_push(msg.to_owned()),
             log::Level::Error | log::Level::Warn => self
                 .get_panel_mut(panel_error::TITLE)
-                .output_push(msg.to_owned()),
-            log::Level::Info | log::Level::Debug | log::Level::Trace => self
-                .get_panel_mut(panel_brief::TITLE)
                 .output_push(msg.to_owned()),
         }
     }

@@ -2,7 +2,12 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 use crate::panels::panels_main::{self, Popup};
 
-pub const TITLE: &str = "Devices";
+pub const TITLE: &str = "Log";
+const HELP_TEXT: &str = r#"
+c - Clear
+h - Help
+q - Quit
+"#;
 
 #[derive(Debug)]
 pub struct Panel {
@@ -23,7 +28,7 @@ impl Panel {
                 title: "Help".to_owned(),
                 x: 50,
                 y: 30,
-                text: "Press 'q' to quit, 'h' to toggle help".to_owned(),
+                text: HELP_TEXT.to_owned(),
             }],
         }
     }
@@ -38,16 +43,16 @@ impl panels_main::Panel for Panel {
         self.input.as_str()
     }
 
-    fn output(&self) -> &Vec<String> {
-        &self.output
-    }
-
     fn output_clear(&mut self) {
         self.output.clear();
     }
 
     fn output_push(&mut self, output: String) {
         self.output.push(output);
+    }
+
+    fn output(&self) -> &Vec<String> {
+        &self.output
     }
 
     fn key(&mut self, key: KeyEvent) -> panels_main::RetKey {
@@ -64,6 +69,9 @@ impl panels_main::Panel for Panel {
             false => match key.code {
                 KeyCode::Char('q') => {
                     ret = panels_main::RetKey::RKLeave;
+                }
+                KeyCode::Char('c') => {
+                    self.output_clear();
                 }
                 KeyCode::Char('h') => {
                     for p in &mut self.popup {

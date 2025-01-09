@@ -1,32 +1,50 @@
+use log::Level::Info;
 use ratatui::{DefaultTerminal, Frame};
+use tokio::sync::mpsc;
 
-use crate::{cfg, mqtt, panels::panels_main};
+use crate::{
+    cfg, device, mqtt,
+    msg::{self, Msg},
+    panels::panels_main,
+};
 
 pub struct App {
+    device: device::Device,
     panels: panels_main::Panels,
     mqtt: mqtt::Mqtt,
+    msg_tx: tokio::sync::mpsc::Sender<Msg>,
 }
 
 impl App {
     pub fn new() -> Self {
-        let app = App {
-            panels: panels_main::Panels::new(),
-            mqtt: mqtt::Mqtt::new(),
-        };
+        let (msg_tx, msg_rx) = mpsc::channel(32);
 
-        app
+        Self {
+            panels: panels_main::Panels::new(msg_rx),
+            mqtt: mqtt::Mqtt::new(msg_tx.clone()),
+            device: device::Device::new(msg_tx.clone()),
+            msg_tx,
+        }
     }
 
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<(), Box<dyn std::error::Error>> {
-        self.log(
-            log::Level::Info,
-            &format!("Welcome to {}!", cfg::get_name()),
-        );
+    pub async fn run(
+        mut self,
+        mut terminal: DefaultTerminal,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        msg::log(
+            &self.msg_tx,
+            Info,
+            format!("Welcome to {}!", cfg::get_name()),
+        )
+        .await;
+
+        self.mqtt.connect().await;
+        self.device.test().await;
 
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
-            match self.panels.key() {
+            match self.panels.key().await {
                 panels_main::RetKey::RKLeave => return Ok(()),
                 panels_main::RetKey::RKContinue => {}
             }
@@ -35,9 +53,5 @@ impl App {
 
     fn draw(&mut self, frame: &mut Frame) {
         self.panels.draw(frame);
-    }
-
-    fn log(&mut self, level: log::Level, msg: &str) {
-        self.panels.log(level, msg);
     }
 }

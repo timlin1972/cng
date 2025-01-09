@@ -38,6 +38,10 @@ impl panels_main::Panel for Panel {
         self.input.as_str()
     }
 
+    fn output_clear(&mut self) {
+        self.output.clear();
+    }
+
     fn output_push(&mut self, output: String) {
         self.output.push(output);
     }
