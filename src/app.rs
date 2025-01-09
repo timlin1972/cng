@@ -19,7 +19,7 @@ impl App {
 
             match self.panels.key() {
                 panels_main::RetKey::RKLeave => return Ok(()),
-                panels_main::RetKey::RKContinue => {},
+                panels_main::RetKey::RKContinue => {}
             }
         }
     }
@@ -28,4 +28,3 @@ impl App {
         self.panels.draw(frame);
     }
 }
-

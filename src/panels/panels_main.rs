@@ -1,17 +1,26 @@
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEvent},
-    layout::{Constraint, Direction, Layout, Position},
+    layout::{Constraint, Direction, Layout, Position, Rect},
     style::{Color, Style},
-    widgets::{Block, BorderType, Borders, Paragraph},
+    text::Text,
+    widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
 
-use crate::panels::{panel_error, panel_info, panel_brief};
+use crate::panels::{panel_brief, panel_error, panel_info};
 
 #[derive(PartialEq)]
 pub enum RetKey {
     RKLeave,
     RKContinue,
+}
+#[derive(Debug)]
+pub struct Popup {
+    pub show: bool,
+    pub title: String,
+    pub x: u16,
+    pub y: u16,
+    pub text: String,
 }
 
 pub trait Panel {
@@ -23,6 +32,7 @@ pub trait Panel {
     fn run(&mut self, _cmd: &str) -> RetKey {
         RetKey::RKContinue
     }
+    fn popup(&self) -> Option<&Popup>;
 }
 
 pub struct Panels {
@@ -113,9 +123,31 @@ impl Panels {
             );
         }
 
+        // Popup
+        let popup = self.panels.get(self.active_panel).unwrap().popup();
+        if let Some(popup) = popup {
+            if popup.show {
+                let popup_area = centered_rect(popup.x, popup.y, frame.area());
+
+                frame.render_widget(Clear, popup_area);
+
+                let popup_block = Block::default()
+                    .borders(Borders::ALL)
+                    .title(popup.title.clone())
+                    .padding(ratatui::widgets::Padding::new(1, 1, 1, 1))
+                    .style(Style::default().bg(Color::Black).fg(Color::White));
+                frame.render_widget(popup_block.clone(), popup_area);
+
+                let text = Paragraph::new(Text::from(popup.text.clone()))
+                    .style(Style::default().fg(Color::Yellow));
+                frame.render_widget(text, popup_block.inner(popup_area));
+            }
+        }
+
+        // Command
         let input = self.panels.get(self.active_panel).unwrap().input();
 
-        let paragraph_command = Paragraph::new(format!("> {}", input)).style(Style::default());
+        let paragraph_command = Paragraph::new(format!("> {input}")).style(Style::default());
         frame.render_widget(paragraph_command, area_command);
 
         frame.set_cursor_position(Position::new(
@@ -139,4 +171,30 @@ impl Panels {
 
         ret
     }
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, size: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(size);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(popup_layout[1])[1]
 }

@@ -1,14 +1,15 @@
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
-use crate::panels::panels_main;
+use crate::panels::panels_main::{self, Popup};
 
-pub const TITLE: &str = "error";
+pub const TITLE: &str = "Error";
 
 #[derive(Debug)]
 pub struct Panel {
     title: String,
     input: String,
     output: Vec<String>,
+    popup: Vec<Popup>,
 }
 
 impl Panel {
@@ -17,6 +18,13 @@ impl Panel {
             title: TITLE.to_owned(),
             input: "".to_owned(),
             output: vec![],
+            popup: vec![Popup {
+                show: false,
+                title: "Help".to_owned(),
+                x: 50,
+                y: 30,
+                text: "Press 'q' to quit, 'h' to toggle help".to_owned(),
+            }],
         }
     }
 }
@@ -41,13 +49,35 @@ impl panels_main::Panel for Panel {
     fn key(&mut self, key: KeyEvent) -> panels_main::RetKey {
         let mut ret = panels_main::RetKey::RKContinue;
 
-        match key.code {
-            KeyCode::Char('q') => {
-                ret = panels_main::RetKey::RKLeave;
+        let is_show = self.popup.iter().any(|p| p.show);
+
+        match is_show {
+            true => {
+                for p in &mut self.popup {
+                    p.show = false;
+                }
             }
-            _ => {}
+            false => match key.code {
+                KeyCode::Char('q') => {
+                    ret = panels_main::RetKey::RKLeave;
+                }
+                KeyCode::Char('h') => {
+                    for p in &mut self.popup {
+                        if p.title == "Help" {
+                            p.show = true;
+                            break;
+                        }
+                    }
+                }
+
+                _ => {}
+            },
         }
 
         ret
+    }
+
+    fn popup(&self) -> Option<&Popup> {
+        self.popup.iter().find(|&p| p.show)
     }
 }
