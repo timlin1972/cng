@@ -2,7 +2,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 use crate::panels::panels_main::{self, Popup};
 
-pub const TITLE: &str = "Info";
+pub const TITLE: &str = "Devices";
 
 #[derive(Debug)]
 pub struct Panel {

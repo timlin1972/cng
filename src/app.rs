@@ -1,19 +1,28 @@
 use ratatui::{DefaultTerminal, Frame};
 
-use crate::panels::panels_main;
+use crate::{cfg, mqtt, panels::panels_main};
 
 pub struct App {
     panels: panels_main::Panels,
+    mqtt: mqtt::Mqtt,
 }
 
 impl App {
     pub fn new() -> Self {
-        Self {
+        let app = App {
             panels: panels_main::Panels::new(),
-        }
+            mqtt: mqtt::Mqtt::new(),
+        };
+
+        app
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<(), Box<dyn std::error::Error>> {
+        self.log(
+            log::Level::Info,
+            &format!("Welcome to {}!", cfg::get_name()),
+        );
+
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
@@ -26,5 +35,9 @@ impl App {
 
     fn draw(&mut self, frame: &mut Frame) {
         self.panels.draw(frame);
+    }
+
+    fn log(&mut self, level: log::Level, msg: &str) {
+        self.panels.log(level, msg);
     }
 }

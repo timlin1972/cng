@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::panels::{panel_brief, panel_error, panel_info};
+use crate::panels::{panel_brief, panel_devices, panel_error};
 
 #[derive(PartialEq)]
 pub enum RetKey {
@@ -44,7 +44,7 @@ impl Panels {
     pub fn new() -> Self {
         let panels = vec![
             Box::new(panel_brief::Panel::new()) as Box<dyn Panel>,
-            Box::new(panel_info::Panel::new()) as Box<dyn Panel>,
+            Box::new(panel_devices::Panel::new()) as Box<dyn Panel>,
             Box::new(panel_error::Panel::new()) as Box<dyn Panel>,
         ];
 
@@ -98,7 +98,7 @@ impl Panels {
 
             let area_height = match window.title() {
                 panel_brief::TITLE => area_brief.height,
-                panel_info::TITLE => area_info.height,
+                panel_devices::TITLE => area_info.height,
                 panel_error::TITLE => area_error.height,
                 _ => panic!(),
             };
@@ -116,7 +116,7 @@ impl Panels {
                 paragraph,
                 match window.title() {
                     panel_brief::TITLE => area_brief,
-                    panel_info::TITLE => area_info,
+                    panel_devices::TITLE => area_info,
                     panel_error::TITLE => area_error,
                     _ => panic!(),
                 },
@@ -170,6 +170,24 @@ impl Panels {
         }
 
         ret
+    }
+
+    pub fn get_panel_mut(&mut self, name: &str) -> &mut Box<dyn Panel> {
+        self.panels
+            .iter_mut()
+            .find(|p| p.title() == name)
+            .unwrap_or_else(|| panic!("Panel not found: {}", name))
+    }
+
+    pub fn log(&mut self, level: log::Level, msg: &str) {
+        match level {
+            log::Level::Error | log::Level::Warn => self
+                .get_panel_mut(panel_error::TITLE)
+                .output_push(msg.to_owned()),
+            log::Level::Info | log::Level::Debug | log::Level::Trace => self
+                .get_panel_mut(panel_brief::TITLE)
+                .output_push(msg.to_owned()),
+        }
     }
 }
 
