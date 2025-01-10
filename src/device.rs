@@ -1,14 +1,16 @@
+use async_channel::Sender;
+
 use crate::msg::{self, DevInfo, Msg};
 
 const MODULE: &str = "device";
 
 pub struct Device {
-    msg_tx: tokio::sync::mpsc::Sender<Msg>,
+    msg_tx: Sender<Msg>,
     devinfos: Vec<DevInfo>,
 }
 
 impl Device {
-    pub fn new(msg_tx: tokio::sync::mpsc::Sender<Msg>) -> Self {
+    pub fn new(msg_tx: Sender<Msg>) -> Self {
         Self {
             msg_tx,
             devinfos: vec![],

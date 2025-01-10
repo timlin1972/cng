@@ -1,3 +1,4 @@
+use async_channel::Receiver;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEvent},
     layout::{Constraint, Direction, Layout, Position, Rect},
@@ -42,12 +43,12 @@ pub trait Panel {
 pub struct Panels {
     pub panels: Vec<Box<dyn Panel>>,
     active_panel: usize,
-    msg_rx: mpsc::Receiver<Msg>,
+    msg_rx: Receiver<Msg>,
     key_rx: mpsc::Receiver<Event>,
 }
 
 impl Panels {
-    pub fn new(msg_rx: mpsc::Receiver<Msg>) -> Self {
+    pub fn new(msg_rx: Receiver<Msg>) -> Self {
         let panels = vec![
             Box::new(panel_log::Panel::new()) as Box<dyn Panel>,
             Box::new(panel_brief::Panel::new()) as Box<dyn Panel>,
@@ -193,7 +194,7 @@ impl Panels {
 
         tokio::select! {
             // Msg::Log handler
-            Some(msg) = self.msg_rx.recv() => {
+            Ok(msg) = self.msg_rx.recv() => {
                 match msg {
                     Msg::Log(log) => {
                         self.log(log.level, log.msg.as_str());

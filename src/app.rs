@@ -1,6 +1,6 @@
 use log::Level::Info;
 use ratatui::{DefaultTerminal, Frame};
-use tokio::sync::mpsc;
+use async_channel::{unbounded, Sender};
 
 use crate::{
     cfg, device, mqtt,
@@ -12,12 +12,12 @@ pub struct App {
     device: device::Device,
     panels: panels_main::Panels,
     mqtt: mqtt::Mqtt,
-    msg_tx: tokio::sync::mpsc::Sender<Msg>,
+    msg_tx: Sender<Msg>,
 }
 
 impl App {
     pub fn new() -> Self {
-        let (msg_tx, msg_rx) = mpsc::channel(32);
+        let (msg_tx, msg_rx) = unbounded();
 
         Self {
             panels: panels_main::Panels::new(msg_rx),

@@ -1,3 +1,4 @@
+use async_channel::Sender;
 use rumqttc::{AsyncClient, LastWill, MqttOptions, QoS, Event, Outgoing, Packet, Publish};
 
 use log::Level::{Error, Info, Trace};
@@ -9,11 +10,11 @@ const MODULE: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
 
 pub struct Mqtt {
-    msg_tx: tokio::sync::mpsc::Sender<Msg>,
+    msg_tx: Sender<Msg>,
 }
 
 impl Mqtt {
-    pub fn new(msg_tx: tokio::sync::mpsc::Sender<Msg>) -> Mqtt {
+    pub fn new(msg_tx: Sender<Msg>) -> Mqtt {
         Mqtt { msg_tx }
     }
 
@@ -116,7 +117,7 @@ impl Mqtt {
 }
 
 async fn subscribe(
-    msg_tx: &tokio::sync::mpsc::Sender<Msg>,
+    msg_tx: &Sender<Msg>,
     client: &rumqttc::AsyncClient,
     topic: &str,
 ) {
@@ -125,7 +126,7 @@ async fn subscribe(
 }
 
 async fn publish(
-    msg_tx: &tokio::sync::mpsc::Sender<Msg>,
+    msg_tx: &Sender<Msg>,
     client: &rumqttc::AsyncClient,
     topic: &str,
     retain: bool,

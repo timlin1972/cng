@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+async-channel = "2.3.1"
 clap = { version = "4.0", features = ["derive"] }
-crossbeam-channel = "0.5.14"
 fs2 = "0.4.3"
 log = "0.4.22"
 ratatui = "0.29.0"
