@@ -1,3 +1,4 @@
+use log::Level::Error;
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Direction, Layout, Position, Rect},
@@ -6,9 +7,12 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
+use tokio::sync::mpsc::Sender;
 
-use crate::msg::DevInfo;
+use crate::msg::{log, Data, DevInfo, Msg};
 use crate::panels::{panel_brief, panel_devices, panel_error, panel_log};
+
+pub const NAME: &str = "panels";
 
 #[derive(PartialEq)]
 pub enum RetKey {
@@ -39,12 +43,13 @@ pub trait Panel {
 }
 
 pub struct Panels {
-    pub panels: Vec<Box<dyn Panel>>,
+    panels: Vec<Box<dyn Panel>>,
     active_panel: usize,
+    msg_tx: Sender<Msg>,
 }
 
 impl Panels {
-    pub fn new() -> Self {
+    pub fn new(msg_tx: Sender<Msg>) -> Self {
         let panels = vec![
             Box::new(panel_log::Panel::new()) as Box<dyn Panel>,
             Box::new(panel_brief::Panel::new()) as Box<dyn Panel>,
@@ -55,10 +60,11 @@ impl Panels {
         Self {
             panels,
             active_panel: 1, // panel_brief
+            msg_tx,
         }
     }
 
-    pub fn next_window(&mut self) {
+    fn next_window(&mut self) {
         self.active_panel = (self.active_panel + 1) % self.panels.len();
     }
 
@@ -186,28 +192,28 @@ impl Panels {
         ret
     }
 
-    pub fn get_panel_mut(&mut self, name: &str) -> &mut Box<dyn Panel> {
+    fn get_panel_mut(&mut self, name: &str) -> &mut Box<dyn Panel> {
         self.panels
             .iter_mut()
             .find(|p| p.title() == name)
             .unwrap_or_else(|| panic!("Panel not found: {}", name))
     }
 
-    pub fn devices(&mut self, devices: Vec<DevInfo>) {
+    fn devices(&mut self, devices: Vec<DevInfo>) {
         self.get_panel_mut(panel_devices::TITLE).output_clear();
         self.get_panel_mut(panel_devices::TITLE)
-            .output_push("Name Onboard".to_string());
+            .output_push(format!("{:<16} {:<6}", "Name", "Onboard"));
         for device in devices.iter() {
             self.get_panel_mut(panel_devices::TITLE)
                 .output_push(format!(
-                    "{} {}",
+                    "{:<16} {:<6}",
                     device.name,
-                    if device.onboard { "O" } else { "-" }
+                    if device.onboard { "On" } else { "Off" }
                 ));
         }
     }
 
-    pub fn log(&mut self, level: log::Level, msg: String) {
+    fn log(&mut self, level: log::Level, msg: String) {
         match level {
             log::Level::Info => self.get_panel_mut(panel_brief::TITLE).output_push(msg),
             log::Level::Debug | log::Level::Trace => {
@@ -216,6 +222,25 @@ impl Panels {
 
             log::Level::Error | log::Level::Warn => {
                 self.get_panel_mut(panel_error::TITLE).output_push(msg)
+            }
+        }
+    }
+
+    pub async fn msg(&mut self, msg: &Msg) {
+        match &msg.data {
+            Data::Log(log) => {
+                self.log(log.level, log.msg.clone());
+            }
+            Data::Devices(devices) => {
+                self.devices(devices.clone());
+            }
+            _ => {
+                log(
+                    &self.msg_tx,
+                    Error,
+                    format!("[{NAME}] unknown msg: {msg:?}"),
+                )
+                .await;
             }
         }
     }

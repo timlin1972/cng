@@ -4,6 +4,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use crate::panels::panels_main::{self, Popup};
 
 pub const TITLE: &str = "Brief";
+const POPUP_HELP: &str = "Help";
 const UNKNOWN_COMMAND: &str = "Unknown command. Input 'h' for help.";
 
 const HELP_TEXT: &str = r#"Commands:
@@ -49,7 +50,7 @@ impl Panel {
             output: vec![],
             popup: vec![Popup {
                 show: false,
-                title: "Help".to_owned(),
+                title: POPUP_HELP.to_owned(),
                 x: 50,
                 y: 40,
                 text: HELP_TEXT.to_owned(),
@@ -125,7 +126,7 @@ impl panels_main::Panel for Panel {
             Some(Commands::H) => {
                 self.output_push("Popup Help window".to_owned());
                 for p in &mut self.popup {
-                    if p.title == "Help" {
+                    if p.title == POPUP_HELP {
                         p.show = true;
                         break;
                     }

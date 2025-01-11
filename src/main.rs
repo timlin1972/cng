@@ -1,10 +1,9 @@
 mod app;
 mod cfg;
-mod device;
 mod log_to_file;
-mod mqtt;
 mod msg;
 mod panels;
+mod plugins;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

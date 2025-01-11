@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+async-trait = "0.1.85"
 clap = { version = "4.0", features = ["derive"] }
 fs2 = "0.4.3"
 log = "0.4.24"

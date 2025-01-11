@@ -7,18 +7,18 @@ use tokio::{
 };
 
 use crate::{
-    cfg, device, mqtt,
-    msg::{self, Msg},
+    cfg,
+    msg::{log, Msg},
     panels::panels_main,
+    plugins::plugins_main,
 };
 
 pub struct App {
-    device: device::Device,
     panels: panels_main::Panels,
-    mqtt: mqtt::Mqtt,
+    plugins: plugins_main::Plugins,
     msg_tx: Sender<Msg>,
     msg_rx: Receiver<Msg>,
-    key_rx: mpsc::Receiver<Event>,
+    key_rx: Receiver<Event>,
 }
 
 impl App {
@@ -38,9 +38,8 @@ impl App {
         });
 
         Self {
-            panels: panels_main::Panels::new(),
-            mqtt: mqtt::Mqtt::new(msg_tx.clone()),
-            device: device::Device::new(msg_tx.clone()),
+            panels: panels_main::Panels::new(msg_tx.clone()),
+            plugins: plugins_main::Plugins::new(msg_tx.clone()),
             msg_tx,
             msg_rx,
             key_rx,
@@ -51,24 +50,25 @@ impl App {
         mut self,
         mut terminal: DefaultTerminal,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        msg::log(
+        log(
             &self.msg_tx,
             Info,
             format!("Welcome to {}!", cfg::get_name()),
         )
         .await;
 
-        self.mqtt.connect().await;
+        self.plugins.init().await;
 
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
             tokio::select! {
                 Some(msg) = self.msg_rx.recv() => {
-                    match msg {
-                        Msg::Log(log) => self.panels.log(log.level, log.msg),
-                        Msg::Devices(devices) => self.panels.devices(devices),
-                        Msg::DeviceUpdate(device) => self.device.device_update(device).await,
+                    if msg.plugin == panels_main::NAME {
+                        self.panels.msg(&msg).await;
+                    }
+                    else {
+                        self.plugins.msg(&msg).await;
                     }
                 }
                 Some(event) = self.key_rx.recv() => {

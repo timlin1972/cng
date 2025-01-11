@@ -1,28 +1,43 @@
+use async_trait::async_trait;
+use log::Level::{Error, Trace};
 use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Outgoing, Packet, Publish, QoS};
 use tokio::sync::mpsc::Sender;
 
-use log::Level::{Error, Info, Trace};
-
 use crate::cfg;
 use crate::msg::{device_update, log, DevInfo, Msg};
+use crate::plugins::plugins_main;
 
-const MODULE: &str = "mqtt";
+const NAME: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
 
-pub struct Mqtt {
+#[derive(Debug)]
+pub struct Plugin {
+    name: String,
     msg_tx: Sender<Msg>,
 }
 
-impl Mqtt {
-    pub fn new(msg_tx: Sender<Msg>) -> Mqtt {
-        Mqtt { msg_tx }
+impl Plugin {
+    pub fn new(msg_tx: Sender<Msg>) -> Self {
+        Self {
+            name: NAME.to_owned(),
+            msg_tx,
+        }
+    }
+}
+
+#[async_trait]
+impl plugins_main::Plugin for Plugin {
+    fn name(&self) -> &str {
+        self.name.as_str()
     }
 
-    pub async fn connect(&mut self) {
+    async fn init(&mut self) {
+        log(&self.msg_tx, Trace, format!("[{NAME}] init")).await;
+
         log(
             &self.msg_tx,
-            Info,
-            format!("[{MODULE}] Connecting to MQTT broker"),
+            Trace,
+            format!("[{NAME}] Connecting to MQTT broker"),
         )
         .await;
 
@@ -44,8 +59,8 @@ impl Mqtt {
         tokio::spawn(async move {
             log(
                 &msg_tx_clone,
-                Info,
-                format!("[{MODULE}] Start to receive mqtt message."),
+                Trace,
+                format!("[{NAME}] Start to receive mqtt message."),
             )
             .await;
 
@@ -56,26 +71,11 @@ impl Mqtt {
                         process_event_publish(&msg_tx_clone, &publish).await;
                     }
                     _ => {
-                        log(
-                            &msg_tx_clone,
-                            Trace,
-                            format!("[{MODULE}] {notification:?}"),
-                        )
-                        .await;
+                        log(&msg_tx_clone, Trace, format!("[{NAME}] {notification:?}")).await;
                     }
                 }
             }
         });
-
-        // clear DEF_NAME
-        publish(
-            &self.msg_tx,
-            &client,
-            &format!("tln/{}/onboard", cfg::DEF_NAME),
-            true,
-            "",
-        )
-        .await;
 
         // subscribe
         subscribe(&self.msg_tx, &client, "tln/#").await;
@@ -92,15 +92,25 @@ impl Mqtt {
 
         log(
             &self.msg_tx,
-            Info,
-            format!("[{MODULE}] Connected to MQTT broker"),
+            Trace,
+            format!("[{NAME}] Connected to MQTT broker"),
+        )
+        .await;
+    }
+
+    async fn msg(&mut self, msg: &Msg) {
+        log(
+            &self.msg_tx,
+            Error,
+            format!("[{NAME}] unknown msg: {msg:?}"),
         )
         .await;
     }
 }
 
 async fn subscribe(msg_tx: &Sender<Msg>, client: &rumqttc::AsyncClient, topic: &str) {
-    log(msg_tx, Info, format!("[{MODULE}] Subscribe: '{topic}'")).await;
+    log(msg_tx, Trace, format!("[{NAME}] Subscribe: '{topic}'")).await;
+
     client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
 }
 
@@ -113,10 +123,11 @@ async fn publish(
 ) {
     log(
         msg_tx,
-        Info,
-        format!("[{MODULE}] Publish: '{topic}::{payload}'"),
+        Trace,
+        format!("[{NAME}] Publish: '{topic}::{payload}'"),
     )
     .await;
+
     if client
         .publish(topic, QoS::AtLeastOnce, retain, payload)
         .await
@@ -125,41 +136,51 @@ async fn publish(
         log(
             msg_tx,
             Error,
-            format!("[{MODULE}] Failed to publish: '{topic}::{payload}'"),
+            format!("[{NAME}] Failed to publish: '{topic}::{payload}'"),
         )
         .await;
     }
 }
 
 async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
-    log(msg_tx, Trace, format!("[{MODULE}] Incoming({publish:?})")).await;
-
-    process_event_publish_onboard(msg_tx, publish).await;
+    if process_event_publish_onboard(msg_tx, publish).await {return;}
+    log(msg_tx, Trace, format!("[{NAME}] Incoming({publish:?})")).await;
 }
 
-async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) {
+async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
     let topic = &publish.topic;
 
     let re = regex::Regex::new(r"^tln/([^/]+)/onboard$").unwrap();
     if let Some(captures) = re.captures(topic) {
         if let Some(name) = captures.get(1) {
+            let name = name.as_str();
             let payload = std::str::from_utf8(&publish.payload).unwrap();
             let onboard = match payload.parse::<u64>() {
                 Ok(t) => t,
-                Err(_) => return,
+                Err(e) => {
+                    log(msg_tx, Error, format!("[{NAME}] Error: Incoming publish::onboard({name}, {e:?}")).await;
+                    return true;
+                }
             };
             if onboard != 0 && onboard != 1 {
-                return;
+                log(msg_tx, Error, format!("[{NAME}] Error: Incoming publish::onboard({name}, {onboard})")).await;
+                return true;
             }
+
+            log(msg_tx, Trace, format!("[{NAME}] Incoming publish::onboard({name}, {onboard})")).await;
 
             device_update(
                 msg_tx,
                 DevInfo {
-                    name: name.as_str().to_owned(),
+                    name: name.to_owned(),
                     onboard: onboard == 1,
                 },
             )
             .await;
         }
+
+        return true;
     }
+
+        false
 }

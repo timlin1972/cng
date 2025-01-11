@@ -3,6 +3,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use crate::panels::panels_main::{self, Popup};
 
 pub const TITLE: &str = "Devices";
+const POPUP_HELP: &str = "Help";
 
 #[derive(Debug)]
 pub struct Panel {
@@ -20,7 +21,7 @@ impl Panel {
             output: vec![],
             popup: vec![Popup {
                 show: false,
-                title: "Help".to_owned(),
+                title: POPUP_HELP.to_owned(),
                 x: 50,
                 y: 30,
                 text: "Press 'q' to quit, 'h' to toggle help".to_owned(),
@@ -67,7 +68,7 @@ impl panels_main::Panel for Panel {
                 }
                 KeyCode::Char('h') => {
                     for p in &mut self.popup {
-                        if p.title == "Help" {
+                        if p.title == POPUP_HELP {
                             p.show = true;
                             break;
                         }
