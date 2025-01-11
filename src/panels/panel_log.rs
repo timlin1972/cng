@@ -81,7 +81,6 @@ impl panels_main::Panel for Panel {
                         }
                     }
                 }
-
                 _ => {}
             },
         }

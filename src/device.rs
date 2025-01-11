@@ -1,4 +1,4 @@
-use async_channel::Sender;
+use tokio::sync::mpsc::Sender;
 
 use crate::msg::{self, DevInfo, Msg};
 
@@ -17,18 +17,8 @@ impl Device {
         }
     }
 
-    pub async fn test(&mut self) {
-        let devices = vec![
-            DevInfo {
-                name: "dev1".to_string(),
-                onboard: true,
-            },
-            DevInfo {
-                name: "dev2".to_string(),
-                onboard: true,
-            },
-        ];
-
-        msg::devices(&self.msg_tx, devices).await;
+    pub async fn device_update(&mut self, device: DevInfo) {
+        self.devinfos.push(device);
+        msg::devices(&self.msg_tx, self.devinfos.clone()).await;
     }
 }

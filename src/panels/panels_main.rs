@@ -1,16 +1,13 @@
-use async_channel::Receiver;
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEvent},
+    crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Direction, Layout, Position, Rect},
     style::{Color, Style},
     text::Text,
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
-use tokio::sync::mpsc;
-use tokio::task;
 
-use crate::msg::Msg;
+use crate::msg::DevInfo;
 use crate::panels::{panel_brief, panel_devices, panel_error, panel_log};
 
 #[derive(PartialEq)]
@@ -18,6 +15,7 @@ pub enum RetKey {
     RKLeave,
     RKContinue,
 }
+
 #[derive(Debug)]
 pub struct Popup {
     pub show: bool,
@@ -43,12 +41,10 @@ pub trait Panel {
 pub struct Panels {
     pub panels: Vec<Box<dyn Panel>>,
     active_panel: usize,
-    msg_rx: Receiver<Msg>,
-    key_rx: mpsc::Receiver<Event>,
 }
 
 impl Panels {
-    pub fn new(msg_rx: Receiver<Msg>) -> Self {
+    pub fn new() -> Self {
         let panels = vec![
             Box::new(panel_log::Panel::new()) as Box<dyn Panel>,
             Box::new(panel_brief::Panel::new()) as Box<dyn Panel>,
@@ -56,23 +52,9 @@ impl Panels {
             Box::new(panel_error::Panel::new()) as Box<dyn Panel>,
         ];
 
-        let (key_tx, key_rx) = mpsc::channel(32);
-
-        tokio::spawn(async move {
-            loop {
-                if let Ok(event) = task::spawn_blocking(event::read).await.unwrap() {
-                    if key_tx.send(event.clone()).await.is_err() {
-                        break;
-                    }
-                }
-            }
-        });
-
         Self {
             panels,
             active_panel: 1, // panel_brief
-            msg_rx,
-            key_rx,
         }
     }
 
@@ -189,36 +171,15 @@ impl Panels {
         ));
     }
 
-    pub async fn key(&mut self) -> RetKey {
+    pub async fn key(&mut self, key: KeyEvent) -> RetKey {
         let mut ret = RetKey::RKContinue;
 
-        tokio::select! {
-            // Msg::Log handler
-            Ok(msg) = self.msg_rx.recv() => {
-                match msg {
-                    Msg::Log(log) => {
-                        self.log(log.level, log.msg.as_str());
-                    }
-                    Msg::Devices(devices) => {
-                        self.get_panel_mut(panel_devices::TITLE).output_clear();
-                        self.get_panel_mut(panel_devices::TITLE).output_push("Name\tOnboard".to_string());
-                        for device in devices.iter() {
-                            self.get_panel_mut(panel_devices::TITLE).output_push(format!("{}\t{}", device.name, if device.onboard { "O" } else { "-"}));
-                        }
-                    }
-                }
+        match key.code {
+            KeyCode::Tab => {
+                self.next_window();
             }
-            Some(event) = self.key_rx.recv() => {
-                if let Event::Key(key) = event {
-                    match key.code {
-                        KeyCode::Tab => {
-                            self.next_window();
-                        }
-                        _ => {
-                            ret = self.panels.get_mut(self.active_panel).unwrap().key(key);
-                        }
-                    }
-                }
+            _ => {
+                ret = self.panels.get_mut(self.active_panel).unwrap().key(key);
             }
         }
 
@@ -232,17 +193,30 @@ impl Panels {
             .unwrap_or_else(|| panic!("Panel not found: {}", name))
     }
 
-    fn log(&mut self, level: log::Level, msg: &str) {
+    pub fn devices(&mut self, devices: Vec<DevInfo>) {
+        self.get_panel_mut(panel_devices::TITLE).output_clear();
+        self.get_panel_mut(panel_devices::TITLE)
+            .output_push("Name Onboard".to_string());
+        for device in devices.iter() {
+            self.get_panel_mut(panel_devices::TITLE)
+                .output_push(format!(
+                    "{} {}",
+                    device.name,
+                    if device.onboard { "O" } else { "-" }
+                ));
+        }
+    }
+
+    pub fn log(&mut self, level: log::Level, msg: String) {
         match level {
-            log::Level::Info => self
-                .get_panel_mut(panel_brief::TITLE)
-                .output_push(msg.to_owned()),
-            log::Level::Debug | log::Level::Trace => self
-                .get_panel_mut(panel_log::TITLE)
-                .output_push(msg.to_owned()),
-            log::Level::Error | log::Level::Warn => self
-                .get_panel_mut(panel_error::TITLE)
-                .output_push(msg.to_owned()),
+            log::Level::Info => self.get_panel_mut(panel_brief::TITLE).output_push(msg),
+            log::Level::Debug | log::Level::Trace => {
+                self.get_panel_mut(panel_log::TITLE).output_push(msg)
+            }
+
+            log::Level::Error | log::Level::Warn => {
+                self.get_panel_mut(panel_error::TITLE).output_push(msg)
+            }
         }
     }
 }

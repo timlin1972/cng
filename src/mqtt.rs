@@ -1,10 +1,10 @@
-use async_channel::Sender;
-use rumqttc::{AsyncClient, LastWill, MqttOptions, QoS, Event, Outgoing, Packet, Publish};
+use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Outgoing, Packet, Publish, QoS};
+use tokio::sync::mpsc::Sender;
 
 use log::Level::{Error, Info, Trace};
 
 use crate::cfg;
-use crate::msg::{log, Msg};
+use crate::msg::{device_update, log, DevInfo, Msg};
 
 const MODULE: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
@@ -51,36 +51,19 @@ impl Mqtt {
 
             while let Ok(notification) = connection.poll().await {
                 match notification {
-                    Event::Incoming(Packet::PingResp)
-                    | Event::Outgoing(Outgoing::PingReq) => (),
+                    Event::Incoming(Packet::PingResp) | Event::Outgoing(Outgoing::PingReq) => (),
+                    Event::Incoming(Packet::Publish(publish)) => {
+                        process_event_publish(&msg_tx_clone, &publish).await;
+                    }
                     _ => {
                         log(
                             &msg_tx_clone,
                             Trace,
-                            format!("[{MODULE}] Received = {notification:?}"),
+                            format!("[{MODULE}] {notification:?}"),
                         )
                         .await;
                     }
                 }
-
-                // match notification {
-                //     Ok(notif) => {
-                //         log(
-                //             &msg_tx_clone,
-                //             Trace,
-                //             format!("[{MODULE}] Received = {notif:?}"),
-                //         )
-                //         .await;
-                //     }
-                //     Err(e) => {
-                //         log(
-                //             &msg_tx_clone,
-                //             Error,
-                //             format!("[{MODULE}] Mqtt rx err: Notification = {e:?}"),
-                //         )
-                //         .await;
-                //     }
-                // }
             }
         });
 
@@ -116,11 +99,7 @@ impl Mqtt {
     }
 }
 
-async fn subscribe(
-    msg_tx: &Sender<Msg>,
-    client: &rumqttc::AsyncClient,
-    topic: &str,
-) {
+async fn subscribe(msg_tx: &Sender<Msg>, client: &rumqttc::AsyncClient, topic: &str) {
     log(msg_tx, Info, format!("[{MODULE}] Subscribe: '{topic}'")).await;
     client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
 }
@@ -149,5 +128,38 @@ async fn publish(
             format!("[{MODULE}] Failed to publish: '{topic}::{payload}'"),
         )
         .await;
+    }
+}
+
+async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
+    log(msg_tx, Trace, format!("[{MODULE}] Incoming({publish:?})")).await;
+
+    process_event_publish_onboard(msg_tx, publish).await;
+}
+
+async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) {
+    let topic = &publish.topic;
+
+    let re = regex::Regex::new(r"^tln/([^/]+)/onboard$").unwrap();
+    if let Some(captures) = re.captures(topic) {
+        if let Some(name) = captures.get(1) {
+            let payload = std::str::from_utf8(&publish.payload).unwrap();
+            let onboard = match payload.parse::<u64>() {
+                Ok(t) => t,
+                Err(_) => return,
+            };
+            if onboard != 0 && onboard != 1 {
+                return;
+            }
+
+            device_update(
+                msg_tx,
+                DevInfo {
+                    name: name.as_str().to_owned(),
+                    onboard: onboard == 1,
+                },
+            )
+            .await;
+        }
     }
 }

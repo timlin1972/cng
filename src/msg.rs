@@ -1,8 +1,10 @@
-use async_channel::Sender;
+use tokio::sync::mpsc::Sender;
 
+#[derive(Debug)]
 pub enum Msg {
     Log(Log),
     Devices(Vec<DevInfo>),
+    DeviceUpdate(DevInfo),
     // ...
 }
 
@@ -12,7 +14,7 @@ pub struct Log {
     pub msg: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DevInfo {
     pub name: String,
     pub onboard: bool,
@@ -24,4 +26,8 @@ pub async fn log(msg_tx: &Sender<Msg>, level: log::Level, msg: String) {
 
 pub async fn devices(msg_tx: &Sender<Msg>, devices: Vec<DevInfo>) {
     msg_tx.send(Msg::Devices(devices)).await.unwrap();
+}
+
+pub async fn device_update(msg_tx: &Sender<Msg>, device: DevInfo) {
+    msg_tx.send(Msg::DeviceUpdate(device)).await.unwrap();
 }
