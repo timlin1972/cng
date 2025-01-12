@@ -74,8 +74,8 @@ impl App {
                 Some(event) = self.key_rx.recv() => {
                     if let Event::Key(key) = event {
                         match self.panels.key(key).await {
-                            panels_main::RetKey::RKLeave => return Ok(()),
-                            panels_main::RetKey::RKContinue => (),
+                            true => return Ok(()),
+                            false => (),
                         }
                     }
                 }

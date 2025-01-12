@@ -81,8 +81,8 @@ impl panels_main::Panel for Panel {
         }
     }
 
-    fn key(&mut self, key: KeyEvent) -> panels_main::RetKey {
-        let mut ret = panels_main::RetKey::RKContinue;
+    async fn key(&mut self, key: KeyEvent) -> bool {
+        let mut ret = false;
 
         let is_show = self.popup.iter().any(|p| p.show);
 
@@ -94,7 +94,7 @@ impl panels_main::Panel for Panel {
             }
             false => match key.code {
                 KeyCode::Char('q') => {
-                    ret = panels_main::RetKey::RKLeave;
+                    ret = true;
                 }
                 KeyCode::Char('c') => {
                     self.output_clear();

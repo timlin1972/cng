@@ -15,12 +15,6 @@ use crate::panels::{panel_brief, panel_devices, panel_error, panel_log};
 
 pub const NAME: &str = "panels";
 
-#[derive(PartialEq)]
-pub enum RetKey {
-    RKLeave,
-    RKContinue,
-}
-
 #[derive(Debug)]
 pub struct Popup {
     pub show: bool,
@@ -38,9 +32,9 @@ pub trait Panel {
     fn output_clear(&mut self);
     fn output_push(&mut self, output: String);
     async fn msg(&mut self, msg: &Msg);
-    fn key(&mut self, key: KeyEvent) -> RetKey;
-    fn run(&mut self, _cmd: &str) -> RetKey {
-        RetKey::RKContinue
+    async fn key(&mut self, key: KeyEvent) -> bool;
+    async fn run(&mut self, _cmd: &str) -> bool {
+        false
     }
     fn popup(&self) -> Option<&Popup>;
 }
@@ -180,15 +174,20 @@ impl Panels {
         ));
     }
 
-    pub async fn key(&mut self, key: KeyEvent) -> RetKey {
-        let mut ret = RetKey::RKContinue;
+    pub async fn key(&mut self, key: KeyEvent) -> bool {
+        let mut ret = false;
 
         match key.code {
             KeyCode::Tab => {
                 self.next_window();
             }
             _ => {
-                ret = self.panels.get_mut(self.active_panel).unwrap().key(key);
+                ret = self
+                    .panels
+                    .get_mut(self.active_panel)
+                    .unwrap()
+                    .key(key)
+                    .await;
             }
         }
 

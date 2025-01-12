@@ -21,6 +21,10 @@ impl Plugin {
             msg_tx,
         }
     }
+
+    async fn init(&mut self) {
+        log(&self.msg_tx, Trace, format!("[{NAME}] init")).await;
+    }
 }
 
 #[async_trait]
@@ -29,12 +33,19 @@ impl plugins_main::Plugin for Plugin {
         self.name.as_str()
     }
 
-    async fn init(&mut self) {
-        log(&self.msg_tx, Trace, format!("[{NAME}] init")).await;
-    }
-
     async fn msg(&mut self, msg: &Msg) {
         match &msg.data {
+            Data::Cmd(cmd) => match cmd.action.as_str() {
+                "init" => self.init().await,
+                _ => {
+                    log(
+                        &self.msg_tx,
+                        Error,
+                        format!("[{NAME}] unknown action: {:?}", cmd.action),
+                    )
+                    .await;
+                }
+            },
             // redirect log to panels
             Data::Log(log) => {
                 self.msg_tx

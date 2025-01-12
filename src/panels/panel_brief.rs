@@ -4,9 +4,8 @@ use log::Level::Error;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{log, Data, Msg};
+use crate::msg::{self, log, Data, Msg};
 use crate::panels::panels_main::{self, Popup};
-use crate::utils;
 
 pub const NAME: &str = "Brief";
 const POPUP_HELP: &str = "Help";
@@ -14,9 +13,7 @@ const UNKNOWN_COMMAND: &str = "Unknown command. Input 'h' for help.";
 
 const HELP_TEXT: &str = r#"Commands:
     h    - Help
-    init - Initialize
     q    - Quit
-    reg  - Register
 "#;
 
 #[derive(Parser, Debug)]
@@ -34,9 +31,13 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     H,
-    Init,
-    Reg,
     Q,
+    Plugin {
+        plugin: String,
+        action: String,
+        data1: Option<String>,
+        data2: Option<String>,
+    },
 }
 
 #[derive(Debug)]
@@ -91,7 +92,7 @@ impl panels_main::Panel for Panel {
     async fn msg(&mut self, msg: &Msg) {
         match &msg.data {
             Data::Log(log) => {
-                self.output_push(format!("{} {}", utils::ts_str(msg.ts), log.msg.clone()));
+                self.output_push(log.msg.clone());
             }
             _ => {
                 log(
@@ -104,8 +105,8 @@ impl panels_main::Panel for Panel {
         }
     }
 
-    fn key(&mut self, key: KeyEvent) -> panels_main::RetKey {
-        let mut ret = panels_main::RetKey::RKContinue;
+    async fn key(&mut self, key: KeyEvent) -> bool {
+        let mut ret = false;
 
         let is_show = self.popup.iter().any(|p| p.show);
 
@@ -119,7 +120,7 @@ impl panels_main::Panel for Panel {
                 KeyCode::Enter => {
                     self.output.push(format!("> {}", self.input));
 
-                    ret = self.run(&self.input.clone());
+                    ret = self.run(&self.input.clone()).await;
                     self.input.clear();
                 }
                 KeyCode::Char(c) => self.input.push(c),
@@ -133,8 +134,8 @@ impl panels_main::Panel for Panel {
         ret
     }
 
-    fn run(&mut self, cmd: &str) -> panels_main::RetKey {
-        let mut ret = panels_main::RetKey::RKContinue;
+    async fn run(&mut self, cmd: &str) -> bool {
+        let mut ret = false;
         let args = shlex::split(&format!("cmd {cmd}"))
             .ok_or("error: Invalid quoting")
             .unwrap();
@@ -156,16 +157,19 @@ impl panels_main::Panel for Panel {
                     }
                 }
             }
-            Some(Commands::Init) => {
-                self.output_push("Initializing".to_owned());
-            }
-            Some(Commands::Reg) => {
-                self.output_push("Registering".to_owned());
-            }
             Some(Commands::Q) => {
                 self.output_push("Quit".to_owned());
-                ret = panels_main::RetKey::RKLeave;
+                ret = true;
             }
+            Some(Commands::Plugin {
+                plugin,
+                action,
+                data1,
+                data2,
+            }) => {
+                msg::cmd(&self.msg_tx, plugin, action, data1, data2).await;
+            }
+
             None => {
                 self.output_push(UNKNOWN_COMMAND.to_owned());
             }

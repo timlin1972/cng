@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use log::Level::{Error, Trace};
+use log::Level::{Error, Info, Trace};
 use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Outgoing, Packet, Publish, QoS};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{device_update, log, DevInfo, Msg};
+use crate::msg::{device_update, log, Data, DevInfo, Msg};
 use crate::plugins::plugins_main;
 use crate::{cfg, utils};
 
@@ -22,13 +22,6 @@ impl Plugin {
             name: NAME.to_owned(),
             msg_tx,
         }
-    }
-}
-
-#[async_trait]
-impl plugins_main::Plugin for Plugin {
-    fn name(&self) -> &str {
-        self.name.as_str()
     }
 
     async fn init(&mut self) {
@@ -98,13 +91,41 @@ impl plugins_main::Plugin for Plugin {
         .await;
     }
 
+    async fn show(&mut self) {
+        log(&self.msg_tx, Info, format!("Broker: {BROKER}")).await;
+        log(&self.msg_tx, Info, format!("Id: {}", cfg::get_name())).await;
+    }
+}
+
+#[async_trait]
+impl plugins_main::Plugin for Plugin {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
     async fn msg(&mut self, msg: &Msg) {
-        log(
-            &self.msg_tx,
-            Error,
-            format!("[{NAME}] unknown msg: {msg:?}"),
-        )
-        .await;
+        match &msg.data {
+            Data::Cmd(cmd) => match cmd.action.as_str() {
+                "init" => self.init().await,
+                "show" => self.show().await,
+                _ => {
+                    log(
+                        &self.msg_tx,
+                        Error,
+                        format!("[{NAME}] unknown action: {:?}", cmd.action),
+                    )
+                    .await;
+                }
+            },
+            _ => {
+                log(
+                    &self.msg_tx,
+                    Error,
+                    format!("[{NAME}] unknown msg: {msg:?}"),
+                )
+                .await;
+            }
+        }
     }
 }
 

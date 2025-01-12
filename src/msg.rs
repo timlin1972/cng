@@ -7,7 +7,7 @@ pub enum Data {
     Log(Log),
     Devices(Vec<DevInfo>),
     DeviceUpdate(DevInfo),
-    // ...
+    Cmd(Cmd),
 }
 
 #[derive(Debug)]
@@ -15,6 +15,13 @@ pub struct Msg {
     pub ts: u64,
     pub plugin: String,
     pub data: Data,
+}
+
+#[derive(Debug, Clone)]
+pub struct Cmd {
+    pub action: String,
+    pub data1: Option<String>,
+    pub data2: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +65,27 @@ pub async fn device_update(msg_tx: &Sender<Msg>, device: DevInfo) {
             ts: utils::ts(),
             plugin: "devices".to_owned(),
             data: Data::DeviceUpdate(device),
+        })
+        .await
+        .unwrap();
+}
+
+pub async fn cmd(
+    msg_tx: &Sender<Msg>,
+    plugin: String,
+    action: String,
+    data1: Option<String>,
+    data2: Option<String>,
+) {
+    msg_tx
+        .send(Msg {
+            ts: utils::ts(),
+            plugin,
+            data: Data::Cmd(Cmd {
+                action,
+                data1,
+                data2,
+            }),
         })
         .await
         .unwrap();
