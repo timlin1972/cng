@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
-use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Outgoing, Packet, Publish, QoS};
+use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Outgoing, Packet, Publish, QoS, Subscribe};
 use tokio::sync::mpsc::Sender;
 
 use crate::msg::{device_update, log, Data, DevInfo, Msg};
@@ -59,7 +59,10 @@ impl Plugin {
 
             while let Ok(notification) = connection.poll().await {
                 match notification {
-                    Event::Incoming(Packet::PingResp) | Event::Outgoing(Outgoing::PingReq) => (),
+                    Event::Incoming(Packet::PingResp) | Event::Outgoing(Outgoing::PingReq) |
+                    Event::Outgoing(Outgoing::Publish(_))| Event::Outgoing(Outgoing::Subscribe(_)) |
+                    Event::Incoming(Packet::SubAck(_)) | Event::Incoming(Packet::PubAck(_))
+                     => (),
                     Event::Incoming(Packet::Publish(publish)) => {
                         process_event_publish(&msg_tx_clone, &publish).await;
                     }
