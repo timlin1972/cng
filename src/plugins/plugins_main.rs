@@ -3,7 +3,7 @@ use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
 use crate::msg::{cmd, log, Data, Msg};
-use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt};
+use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt, plugin_wol};
 
 pub const NAME: &str = "plugins";
 
@@ -24,6 +24,7 @@ impl Plugins {
             Box::new(plugin_log::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
             Box::new(plugin_devices::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
             Box::new(plugin_mqtt::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
+            Box::new(plugin_wol::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
         ];
 
         Self { plugins, msg_tx }

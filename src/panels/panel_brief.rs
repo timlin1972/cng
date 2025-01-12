@@ -18,7 +18,10 @@ const HELP_TEXT: &str = r#"Commands:
     p <plugin> <action>
         plugin: plugins, device, log, ...
                 use 'p plugins show' to get plugin list
-        action: init, show
+        action: init, show, action
+    Example:
+        p devices show pi5
+        p wol wake linds
 "#;
 
 #[derive(Parser, Debug)]
