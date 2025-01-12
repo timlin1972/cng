@@ -1,38 +1,46 @@
+use async_trait::async_trait;
+use log::Level::Error;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use tokio::sync::mpsc::Sender;
 
+use crate::msg::{log, Data, Msg};
 use crate::panels::panels_main::{self, Popup};
+use crate::utils;
 
-pub const TITLE: &str = "Devices";
+pub const NAME: &str = "Devices";
 const POPUP_HELP: &str = "Help";
 
 #[derive(Debug)]
 pub struct Panel {
-    title: String,
+    name: String,
     input: String,
     output: Vec<String>,
     popup: Vec<Popup>,
+    msg_tx: Sender<Msg>,
 }
 
 impl Panel {
-    pub fn new() -> Self {
+    pub fn new(msg_tx: Sender<Msg>) -> Self {
         Self {
-            title: TITLE.to_owned(),
+            name: NAME.to_owned(),
             input: "".to_owned(),
             output: vec![],
             popup: vec![Popup {
                 show: false,
-                title: POPUP_HELP.to_owned(),
+                name: POPUP_HELP.to_owned(),
                 x: 50,
                 y: 30,
                 text: "Press 'q' to quit, 'h' to toggle help".to_owned(),
             }],
+            msg_tx,
         }
     }
 }
 
+#[async_trait]
 impl panels_main::Panel for Panel {
-    fn title(&self) -> &str {
-        self.title.as_str()
+    fn name(&self) -> &str {
+        self.name.as_str()
     }
 
     fn input(&self) -> &str {
@@ -49,6 +57,34 @@ impl panels_main::Panel for Panel {
 
     fn output_push(&mut self, output: String) {
         self.output.push(output);
+    }
+
+    async fn msg(&mut self, msg: &Msg) {
+        match &msg.data {
+            Data::Devices(devices) => {
+                self.output_clear();
+                self.output_push(format!(
+                    "{:<16} {:<7} {:<11}",
+                    "Name", "Onboard", "Last update"
+                ));
+                for device in devices.iter() {
+                    self.output_push(format!(
+                        "{:<16} {:<7} {:<11}",
+                        device.name,
+                        if device.onboard { "On" } else { "Off" },
+                        utils::ts_str(device.ts)
+                    ));
+                }
+            }
+            _ => {
+                log(
+                    &self.msg_tx,
+                    Error,
+                    format!("[{NAME}] unknown msg: {msg:?}"),
+                )
+                .await;
+            }
+        }
     }
 
     fn key(&mut self, key: KeyEvent) -> panels_main::RetKey {
@@ -68,7 +104,7 @@ impl panels_main::Panel for Panel {
                 }
                 KeyCode::Char('h') => {
                     for p in &mut self.popup {
-                        if p.title == POPUP_HELP {
+                        if p.name == POPUP_HELP {
                             p.show = true;
                             break;
                         }

@@ -1,5 +1,7 @@
 use tokio::sync::mpsc::Sender;
 
+use crate::utils;
+
 #[derive(Debug, Clone)]
 pub enum Data {
     Log(Log),
@@ -10,6 +12,7 @@ pub enum Data {
 
 #[derive(Debug)]
 pub struct Msg {
+    pub ts: u64,
     pub plugin: String,
     pub data: Data,
 }
@@ -22,6 +25,7 @@ pub struct Log {
 
 #[derive(Debug, Clone)]
 pub struct DevInfo {
+    pub ts: u64,
     pub name: String,
     pub onboard: bool,
 }
@@ -29,6 +33,7 @@ pub struct DevInfo {
 pub async fn log(msg_tx: &Sender<Msg>, level: log::Level, msg: String) {
     msg_tx
         .send(Msg {
+            ts: utils::ts(),
             plugin: "log".to_owned(),
             data: Data::Log(Log { level, msg }),
         })
@@ -39,6 +44,7 @@ pub async fn log(msg_tx: &Sender<Msg>, level: log::Level, msg: String) {
 pub async fn devices(msg_tx: &Sender<Msg>, devices: Vec<DevInfo>) {
     msg_tx
         .send(Msg {
+            ts: utils::ts(),
             plugin: "panels".to_owned(),
             data: Data::Devices(devices),
         })
@@ -49,6 +55,7 @@ pub async fn devices(msg_tx: &Sender<Msg>, devices: Vec<DevInfo>) {
 pub async fn device_update(msg_tx: &Sender<Msg>, device: DevInfo) {
     msg_tx
         .send(Msg {
+            ts: utils::ts(),
             plugin: "devices".to_owned(),
             data: Data::DeviceUpdate(device),
         })

@@ -39,6 +39,7 @@ impl plugins_main::Plugin for Plugin {
             Data::Log(log) => {
                 self.msg_tx
                     .send(Msg {
+                        ts: msg.ts,
                         plugin: panels_main::NAME.to_owned(),
                         data: Data::Log(log.clone()),
                     })

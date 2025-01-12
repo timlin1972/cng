@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use log::Level::Error;
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent},
@@ -9,7 +10,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{log, Data, DevInfo, Msg};
+use crate::msg::{log, Data, Msg};
 use crate::panels::{panel_brief, panel_devices, panel_error, panel_log};
 
 pub const NAME: &str = "panels";
@@ -23,18 +24,20 @@ pub enum RetKey {
 #[derive(Debug)]
 pub struct Popup {
     pub show: bool,
-    pub title: String,
+    pub name: String,
     pub x: u16,
     pub y: u16,
     pub text: String,
 }
 
+#[async_trait]
 pub trait Panel {
-    fn title(&self) -> &str;
+    fn name(&self) -> &str;
     fn input(&self) -> &str;
     fn output(&self) -> &Vec<String>;
     fn output_clear(&mut self);
     fn output_push(&mut self, output: String);
+    async fn msg(&mut self, msg: &Msg);
     fn key(&mut self, key: KeyEvent) -> RetKey;
     fn run(&mut self, _cmd: &str) -> RetKey {
         RetKey::RKContinue
@@ -51,10 +54,10 @@ pub struct Panels {
 impl Panels {
     pub fn new(msg_tx: Sender<Msg>) -> Self {
         let panels = vec![
-            Box::new(panel_log::Panel::new()) as Box<dyn Panel>,
-            Box::new(panel_brief::Panel::new()) as Box<dyn Panel>,
-            Box::new(panel_devices::Panel::new()) as Box<dyn Panel>,
-            Box::new(panel_error::Panel::new()) as Box<dyn Panel>,
+            Box::new(panel_log::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
+            Box::new(panel_brief::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
+            Box::new(panel_devices::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
+            Box::new(panel_error::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
         ];
 
         Self {
@@ -102,7 +105,7 @@ impl Panels {
 
         for (index, window) in self.panels.iter().enumerate() {
             let block = Block::default()
-                .title(window.title())
+                .title(window.name())
                 .borders(Borders::ALL)
                 .border_type(if index == self.active_panel {
                     BorderType::Double
@@ -115,11 +118,11 @@ impl Panels {
                     Style::default()
                 });
 
-            let area_height = match window.title() {
-                panel_log::TITLE => area_log.height,
-                panel_brief::TITLE => area_brief.height,
-                panel_devices::TITLE => area_info.height,
-                panel_error::TITLE => area_error.height,
+            let area_height = match window.name() {
+                panel_log::NAME => area_log.height,
+                panel_brief::NAME => area_brief.height,
+                panel_devices::NAME => area_info.height,
+                panel_error::NAME => area_error.height,
                 _ => panic!(),
             };
 
@@ -134,11 +137,11 @@ impl Panels {
                 .scroll((scroll_offset, 0));
             frame.render_widget(
                 paragraph,
-                match window.title() {
-                    panel_log::TITLE => area_log,
-                    panel_brief::TITLE => area_brief,
-                    panel_devices::TITLE => area_info,
-                    panel_error::TITLE => area_error,
+                match window.name() {
+                    panel_log::NAME => area_log,
+                    panel_brief::NAME => area_brief,
+                    panel_devices::NAME => area_info,
+                    panel_error::NAME => area_error,
                     _ => panic!(),
                 },
             );
@@ -154,7 +157,7 @@ impl Panels {
 
                 let popup_block = Block::default()
                     .borders(Borders::ALL)
-                    .title(popup.title.clone())
+                    .title(popup.name.clone())
                     .padding(ratatui::widgets::Padding::new(1, 1, 1, 1))
                     .style(Style::default().bg(Color::Black).fg(Color::White));
                 frame.render_widget(popup_block.clone(), popup_area);
@@ -195,44 +198,24 @@ impl Panels {
     fn get_panel_mut(&mut self, name: &str) -> &mut Box<dyn Panel> {
         self.panels
             .iter_mut()
-            .find(|p| p.title() == name)
+            .find(|p| p.name() == name)
             .unwrap_or_else(|| panic!("Panel not found: {}", name))
-    }
-
-    fn devices(&mut self, devices: Vec<DevInfo>) {
-        self.get_panel_mut(panel_devices::TITLE).output_clear();
-        self.get_panel_mut(panel_devices::TITLE)
-            .output_push(format!("{:<16} {:<6}", "Name", "Onboard"));
-        for device in devices.iter() {
-            self.get_panel_mut(panel_devices::TITLE)
-                .output_push(format!(
-                    "{:<16} {:<6}",
-                    device.name,
-                    if device.onboard { "On" } else { "Off" }
-                ));
-        }
-    }
-
-    fn log(&mut self, level: log::Level, msg: String) {
-        match level {
-            log::Level::Info => self.get_panel_mut(panel_brief::TITLE).output_push(msg),
-            log::Level::Debug | log::Level::Trace => {
-                self.get_panel_mut(panel_log::TITLE).output_push(msg)
-            }
-
-            log::Level::Error | log::Level::Warn => {
-                self.get_panel_mut(panel_error::TITLE).output_push(msg)
-            }
-        }
     }
 
     pub async fn msg(&mut self, msg: &Msg) {
         match &msg.data {
-            Data::Log(log) => {
-                self.log(log.level, log.msg.clone());
-            }
-            Data::Devices(devices) => {
-                self.devices(devices.clone());
+            Data::Log(log) => match log.level {
+                log::Level::Info => self.get_panel_mut(panel_brief::NAME).msg(msg).await,
+                log::Level::Debug | log::Level::Trace => {
+                    self.get_panel_mut(panel_log::NAME).msg(msg).await;
+                }
+
+                log::Level::Error | log::Level::Warn => {
+                    self.get_panel_mut(panel_error::NAME).msg(msg).await;
+                }
+            },
+            Data::Devices(_devices) => {
+                self.get_panel_mut(panel_devices::NAME).msg(msg).await;
             }
             _ => {
                 log(

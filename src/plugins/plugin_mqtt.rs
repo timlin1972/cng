@@ -3,9 +3,9 @@ use log::Level::{Error, Trace};
 use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Outgoing, Packet, Publish, QoS};
 use tokio::sync::mpsc::Sender;
 
-use crate::cfg;
 use crate::msg::{device_update, log, DevInfo, Msg};
 use crate::plugins::plugins_main;
+use crate::{cfg, utils};
 
 const NAME: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
@@ -143,7 +143,9 @@ async fn publish(
 }
 
 async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
-    if process_event_publish_onboard(msg_tx, publish).await {return;}
+    if process_event_publish_onboard(msg_tx, publish).await {
+        return;
+    }
     log(msg_tx, Trace, format!("[{NAME}] Incoming({publish:?})")).await;
 }
 
@@ -158,20 +160,36 @@ async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) 
             let onboard = match payload.parse::<u64>() {
                 Ok(t) => t,
                 Err(e) => {
-                    log(msg_tx, Error, format!("[{NAME}] Error: Incoming publish::onboard({name}, {e:?}")).await;
+                    log(
+                        msg_tx,
+                        Error,
+                        format!("[{NAME}] Error: Incoming publish::onboard({name}, {e:?}"),
+                    )
+                    .await;
                     return true;
                 }
             };
             if onboard != 0 && onboard != 1 {
-                log(msg_tx, Error, format!("[{NAME}] Error: Incoming publish::onboard({name}, {onboard})")).await;
+                log(
+                    msg_tx,
+                    Error,
+                    format!("[{NAME}] Error: Incoming publish::onboard({name}, {onboard})"),
+                )
+                .await;
                 return true;
             }
 
-            log(msg_tx, Trace, format!("[{NAME}] Incoming publish::onboard({name}, {onboard})")).await;
+            log(
+                msg_tx,
+                Trace,
+                format!("[{NAME}] Incoming publish::onboard({name}, {onboard})"),
+            )
+            .await;
 
             device_update(
                 msg_tx,
                 DevInfo {
+                    ts: utils::ts(),
                     name: name.to_owned(),
                     onboard: onboard == 1,
                 },
@@ -182,5 +200,5 @@ async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) 
         return true;
     }
 
-        false
+    false
 }

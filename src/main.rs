@@ -4,6 +4,7 @@ mod log_to_file;
 mod msg;
 mod panels;
 mod plugins;
+mod utils;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

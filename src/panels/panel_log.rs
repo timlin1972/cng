@@ -1,8 +1,13 @@
+use async_trait::async_trait;
+use log::Level::Error;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use tokio::sync::mpsc::Sender;
 
+use crate::msg::{log, Data, Msg};
 use crate::panels::panels_main::{self, Popup};
+use crate::utils;
 
-pub const TITLE: &str = "Log";
+pub const NAME: &str = "Log";
 const POPUP_HELP: &str = "Help";
 
 const HELP_TEXT: &str = r#"
@@ -13,32 +18,35 @@ q - Quit
 
 #[derive(Debug)]
 pub struct Panel {
-    title: String,
+    name: String,
     input: String,
     output: Vec<String>,
     popup: Vec<Popup>,
+    msg_tx: Sender<Msg>,
 }
 
 impl Panel {
-    pub fn new() -> Self {
+    pub fn new(msg_tx: Sender<Msg>) -> Self {
         Self {
-            title: TITLE.to_owned(),
+            name: NAME.to_owned(),
             input: "".to_owned(),
             output: vec![],
             popup: vec![Popup {
                 show: false,
-                title: POPUP_HELP.to_owned(),
+                name: POPUP_HELP.to_owned(),
                 x: 50,
                 y: 30,
                 text: HELP_TEXT.to_owned(),
             }],
+            msg_tx,
         }
     }
 }
 
+#[async_trait]
 impl panels_main::Panel for Panel {
-    fn title(&self) -> &str {
-        self.title.as_str()
+    fn name(&self) -> &str {
+        self.name.as_str()
     }
 
     fn input(&self) -> &str {
@@ -55,6 +63,22 @@ impl panels_main::Panel for Panel {
 
     fn output(&self) -> &Vec<String> {
         &self.output
+    }
+
+    async fn msg(&mut self, msg: &Msg) {
+        match &msg.data {
+            Data::Log(log) => {
+                self.output_push(format!("{} {}", utils::ts_str(msg.ts), log.msg.clone()));
+            }
+            _ => {
+                log(
+                    &self.msg_tx,
+                    Error,
+                    format!("[{NAME}] unknown msg: {msg:?}"),
+                )
+                .await;
+            }
+        }
     }
 
     fn key(&mut self, key: KeyEvent) -> panels_main::RetKey {
@@ -77,7 +101,7 @@ impl panels_main::Panel for Panel {
                 }
                 KeyCode::Char('h') => {
                     for p in &mut self.popup {
-                        if p.title == POPUP_HELP {
+                        if p.name == POPUP_HELP {
                             p.show = true;
                             break;
                         }

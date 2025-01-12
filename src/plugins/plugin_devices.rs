@@ -25,12 +25,13 @@ impl Plugin {
 
     async fn device_update(&mut self, device: &DevInfo) {
         if let Some(d) = self.devices.iter_mut().find(|d| d.name == device.name) {
-            d.onboard = device.onboard
+            d.onboard = device.onboard;
+            d.ts = device.ts;
         } else {
             self.devices.push(device.clone());
         }
 
-        devices(&self.msg_tx, self.devices.clone()).await;    
+        devices(&self.msg_tx, self.devices.clone()).await;
     }
 }
 
