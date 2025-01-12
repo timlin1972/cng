@@ -22,6 +22,7 @@ const HELP_TEXT: &str = r#"Commands:
     Example:
         p devices show pi5
         p wol wake linds
+        p mqtt send pi5 p wol wake linds
 "#;
 
 #[derive(Parser, Debug)]
@@ -45,6 +46,9 @@ enum Commands {
         action: String,
         data1: Option<String>,
         data2: Option<String>,
+        data3: Option<String>,
+        data4: Option<String>,
+        data5: Option<String>,
     },
 }
 
@@ -174,8 +178,21 @@ impl panels_main::Panel for Panel {
                 action,
                 data1,
                 data2,
+                data3,
+                data4,
+                data5,
             }) => {
-                msg::cmd(&self.msg_tx, plugin, action, data1, data2).await;
+                msg::cmd(
+                    &self.msg_tx,
+                    plugin,
+                    action,
+                    data1,
+                    data2,
+                    data3,
+                    data4,
+                    data5,
+                )
+                .await;
             }
 
             None => {

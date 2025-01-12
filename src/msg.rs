@@ -22,6 +22,9 @@ pub struct Cmd {
     pub action: String,
     pub data1: Option<String>,
     pub data2: Option<String>,
+    pub data3: Option<String>,
+    pub data4: Option<String>,
+    pub data5: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +79,9 @@ pub async fn cmd(
     action: String,
     data1: Option<String>,
     data2: Option<String>,
+    data3: Option<String>,
+    data4: Option<String>,
+    data5: Option<String>,
 ) {
     msg_tx
         .send(Msg {
@@ -85,6 +91,9 @@ pub async fn cmd(
                 action,
                 data1,
                 data2,
+                data3,
+                data4,
+                data5,
             }),
         })
         .await

@@ -39,6 +39,9 @@ impl Plugins {
                 "init".to_owned(),
                 None,
                 None,
+                None,
+                None,
+                None,
             )
             .await;
         }
