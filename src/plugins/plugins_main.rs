@@ -1,11 +1,11 @@
 use async_trait::async_trait;
-use log::Level::Info;
+use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{cmd, log, Msg};
+use crate::msg::{cmd, log, Data, Msg};
 use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt};
 
-const NAME: &str = "plugins";
+pub const NAME: &str = "plugins";
 
 #[async_trait]
 pub trait Plugin {
@@ -40,7 +40,6 @@ impl Plugins {
                 None,
             )
             .await;
-            // plugin.init().await;
         }
     }
 
@@ -48,16 +47,46 @@ impl Plugins {
         self.plugins.iter_mut().find(|p| p.name() == name)
     }
 
+    async fn show(&mut self) {
+        for plugin in &self.plugins {
+            log(&self.msg_tx, Info, format!("{}", plugin.name())).await;
+        }
+    }
+
     pub async fn msg(&mut self, msg: &Msg) {
-        match self.get_plugin_mut(&msg.plugin) {
-            Some(t) => t.msg(msg).await,
-            None => {
-                log(
-                    &self.msg_tx,
-                    Info,
-                    format!("[{NAME}] Plugin '{}' not found", msg.plugin),
-                )
-                .await;
+        if msg.plugin == NAME {
+            match &msg.data {
+                Data::Cmd(cmd) => match cmd.action.as_str() {
+                    "show" => self.show().await,
+                    _ => {
+                        log(
+                            &self.msg_tx,
+                            Error,
+                            format!("[{NAME}] unknown action: {:?}", cmd.action),
+                        )
+                        .await;
+                    }
+                },
+                _ => {
+                    log(
+                        &self.msg_tx,
+                        Error,
+                        format!("[{NAME}] unknown msg: {msg:?}"),
+                    )
+                    .await;
+                }
+            }
+        } else {
+            match self.get_plugin_mut(&msg.plugin) {
+                Some(t) => t.msg(msg).await,
+                None => {
+                    log(
+                        &self.msg_tx,
+                        Info,
+                        format!("[{NAME}] Plugin '{}' not found", msg.plugin),
+                    )
+                    .await;
+                }
             }
         }
     }

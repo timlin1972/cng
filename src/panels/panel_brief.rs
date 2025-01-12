@@ -14,6 +14,11 @@ const UNKNOWN_COMMAND: &str = "Unknown command. Input 'h' for help.";
 const HELP_TEXT: &str = r#"Commands:
     h    - Help
     q    - Quit
+
+    p <plugin> <action>
+        plugin: plugins, device, log, ...
+                use 'p plugins show' to get plugin list
+        action: init, show
 "#;
 
 #[derive(Parser, Debug)]
@@ -32,7 +37,7 @@ struct Cli {
 enum Commands {
     H,
     Q,
-    Plugin {
+    P {
         plugin: String,
         action: String,
         data1: Option<String>,
@@ -161,7 +166,7 @@ impl panels_main::Panel for Panel {
                 self.output_push("Quit".to_owned());
                 ret = true;
             }
-            Some(Commands::Plugin {
+            Some(Commands::P {
                 plugin,
                 action,
                 data1,

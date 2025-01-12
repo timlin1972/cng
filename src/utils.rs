@@ -16,3 +16,11 @@ pub fn ts_str(ts: u64) -> String {
 
     datetime_local.format("%H:%M:%S").to_string()
 }
+
+pub fn ts_str_full(ts: u64) -> String {
+    let datetime_local: DateTime<Local> = DateTime::from_timestamp(ts as i64, 0)
+        .unwrap()
+        .with_timezone(&Local);
+
+    datetime_local.format("%Y-%m-%d %H:%M:%S %:z").to_string()
+}

@@ -1,9 +1,10 @@
 use async_trait::async_trait;
-use log::Level::{Error, Trace};
+use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{devices, log, Data, DevInfo, Msg};
+use crate::msg::{devices, log, Cmd, Data, DevInfo, Msg};
 use crate::plugins::plugins_main;
+use crate::utils;
 
 const NAME: &str = "devices";
 
@@ -37,6 +38,34 @@ impl Plugin {
     async fn init(&mut self) {
         log(&self.msg_tx, Trace, format!("[{NAME}] init")).await;
     }
+
+    async fn show_device(&self, device: &DevInfo) {
+        log(&self.msg_tx, Info, format!("{}", device.name)).await;
+        log(
+            &self.msg_tx,
+            Info,
+            format!("    Onboard: {}", if device.onboard { "On" } else { "off" }),
+        )
+        .await;
+        log(
+            &self.msg_tx,
+            Info,
+            format!("    Last update: {}", utils::ts_str_full(device.ts)),
+        )
+        .await;
+    }
+
+    async fn show(&mut self, cmd: &Cmd) {
+        for device in &self.devices {
+            if let Some(t) = &cmd.data1 {
+                if *t == device.name {
+                    self.show_device(device).await;
+                }
+            } else {
+                log(&self.msg_tx, Info, format!("{}", device.name)).await;
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -49,6 +78,7 @@ impl plugins_main::Plugin for Plugin {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
                 "init" => self.init().await,
+                "show" => self.show(cmd).await,
                 _ => {
                     log(
                         &self.msg_tx,
