@@ -45,7 +45,7 @@ impl Plugin {
     }
 
     async fn wake(&mut self, cmd: &Cmd) {
-        let mac = match &cmd.data1 {
+        let mac = match &cmd.data.first() {
             Some(t) => match t.as_str() {
                 "linds" => LIN_DS_MAC,
                 _ => {

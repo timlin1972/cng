@@ -106,8 +106,8 @@ impl Plugin {
     }
 
     async fn send(&mut self, cmd: &Cmd) {
-        let target_device = match &cmd.data1 {
-            Some(t) => t,
+        let target_device = match &cmd.data.first() {
+            Some(t) => t.to_owned(),
             None => {
                 log(
                     &self.msg_tx,
@@ -120,34 +120,21 @@ impl Plugin {
         };
 
         let mut msg = String::new();
-        if let Some(t) = &cmd.data2 {
-            msg += &t;
-            msg += " ";
-        }
-
-        if let Some(t) = &cmd.data3 {
-            msg += &t;
-            msg += " ";
-        }
-
-        if let Some(t) = &cmd.data4 {
-            msg += &t;
-            msg += " ";
-        }
-
-        if let Some(t) = &cmd.data5 {
-            msg += &t;
+        for t in &cmd.data[1..] {
+            msg += t;
             msg += " ";
         }
 
         let msg = msg.trim();
 
+        let enc_msg = utils::encrypt(&cfg::get_key(), msg).unwrap();
+
         publish(
             &self.msg_tx,
-            &self.client.as_ref().unwrap(),
+            self.client.as_ref().unwrap(),
             &format!("tln/{target_device}/ask"),
             false,
-            &msg,
+            &enc_msg,
         )
         .await;
     }
@@ -238,18 +225,22 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
         if let Some(name) = captures.get(1) {
             let name = name.as_str();
             let payload = std::str::from_utf8(&publish.payload).unwrap();
-            let payload_vec: Vec<String> =
-                payload.split_whitespace().map(|s| s.to_string()).collect();
+            let dec_payload = utils::decrypt(&cfg::get_key(), payload).unwrap();
+
+            let payload_vec: Vec<String> = dec_payload
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect();
 
             log(
                 msg_tx,
                 Trace,
-                format!("[{NAME}] <- publish::ask: {name}, '{payload}'"),
+                format!("[{NAME}] <- publish::ask: {name}, '{dec_payload}'"),
             )
             .await;
 
             if name == cfg::get_name() {
-                if let Some(t) = payload_vec.get(0) {
+                if let Some(t) = payload_vec.first() {
                     if t != "p" {
                         log(msg_tx, Error, format!("[{NAME}] p is not existed.")).await;
                         return true;
@@ -273,13 +264,14 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
                     return true;
                 };
 
-                let data1 = payload_vec.get(3).cloned();
-                let data2 = payload_vec.get(4).cloned();
-                let data3 = payload_vec.get(5).cloned();
-                let data4 = payload_vec.get(6).cloned();
-                let data5 = payload_vec.get(7).cloned();
+                let mut data = vec![];
+                for i in 3..=7 {
+                    if let Some(t) = payload_vec.get(i) {
+                        data.push(t.to_owned());
+                    }
+                }
 
-                msg::cmd(msg_tx, plugin, action, data1, data2, data3, data4, data5).await;
+                msg::cmd(msg_tx, plugin, action, data).await;
             }
         }
 

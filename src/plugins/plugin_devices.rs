@@ -40,7 +40,7 @@ impl Plugin {
     }
 
     async fn show_device(&self, device: &DevInfo) {
-        log(&self.msg_tx, Info, format!("{}", device.name)).await;
+        log(&self.msg_tx, Info, device.name.to_string()).await;
         log(
             &self.msg_tx,
             Info,
@@ -57,12 +57,12 @@ impl Plugin {
 
     async fn show(&mut self, cmd: &Cmd) {
         for device in &self.devices {
-            if let Some(t) = &cmd.data1 {
-                if *t == device.name {
+            if let Some(t) = &cmd.data.first() {
+                if *t == &device.name {
                     self.show_device(device).await;
                 }
             } else {
-                log(&self.msg_tx, Info, format!("{}", device.name)).await;
+                log(&self.msg_tx, Info, device.name.to_string()).await;
             }
         }
     }

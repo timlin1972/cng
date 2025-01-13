@@ -37,11 +37,7 @@ impl Plugins {
                 &self.msg_tx,
                 plugin.name().to_owned(),
                 "init".to_owned(),
-                None,
-                None,
-                None,
-                None,
-                None,
+                vec![],
             )
             .await;
         }
@@ -53,7 +49,7 @@ impl Plugins {
 
     async fn show(&mut self) {
         for plugin in &self.plugins {
-            log(&self.msg_tx, Info, format!("{}", plugin.name())).await;
+            log(&self.msg_tx, Info, plugin.name().to_string()).await;
         }
     }
 

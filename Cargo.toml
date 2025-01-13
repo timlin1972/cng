@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+aes-gcm = "0.10.3"
 async-trait = "0.1.85"
+base64 = "0.22.1"
 chrono = "0.4.39"
 clap = { version = "4.0", features = ["derive"] }
 fs2 = "0.4.3"
 log = "0.4.22"
+rand = "0.8.5"
 ratatui = "0.29.0"
 regex = "1.11.1"
 rumqttc = "0.24.0"

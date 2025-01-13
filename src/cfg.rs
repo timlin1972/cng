@@ -7,10 +7,12 @@ use serde::{Deserialize, Serialize};
 
 pub const DEF_NAME: &str = "cng_default";
 const CFG_FILE: &str = "./cfg.json";
+const KEY: &str = "an example very very secret key."; // length is fixed
 
 #[derive(Serialize, Deserialize)]
 pub struct Cfg {
     pub name: String,
+    pub key: String,
 }
 
 pub fn init() {
@@ -19,6 +21,7 @@ pub fn init() {
     if !path.exists() {
         let cfg = Cfg {
             name: DEF_NAME.to_owned(),
+            key: KEY.to_owned(),
         };
 
         let file_content = serde_json::to_string_pretty(&cfg).unwrap();
@@ -50,4 +53,8 @@ pub fn get_cfg() -> Cfg {
 
 pub fn get_name() -> String {
     get_cfg().name
+}
+
+pub fn get_key() -> String {
+    get_cfg().key
 }

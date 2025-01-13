@@ -73,10 +73,7 @@ impl App {
                 }
                 Some(event) = self.key_rx.recv() => {
                     if let Event::Key(key) = event {
-                        match self.panels.key(key).await {
-                            true => return Ok(()),
-                            false => (),
-                        }
+                        if self.panels.key(key).await { return Ok(()) }
                     }
                 }
             }

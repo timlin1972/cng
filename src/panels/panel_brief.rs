@@ -44,11 +44,7 @@ enum Commands {
     P {
         plugin: String,
         action: String,
-        data1: Option<String>,
-        data2: Option<String>,
-        data3: Option<String>,
-        data4: Option<String>,
-        data5: Option<String>,
+        data: Vec<String>,
     },
 }
 
@@ -176,23 +172,9 @@ impl panels_main::Panel for Panel {
             Some(Commands::P {
                 plugin,
                 action,
-                data1,
-                data2,
-                data3,
-                data4,
-                data5,
+                data,
             }) => {
-                msg::cmd(
-                    &self.msg_tx,
-                    plugin,
-                    action,
-                    data1,
-                    data2,
-                    data3,
-                    data4,
-                    data5,
-                )
-                .await;
+                msg::cmd(&self.msg_tx, plugin, action, data).await;
             }
 
             None => {
