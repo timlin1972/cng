@@ -7,7 +7,7 @@ use crate::msg::{self, device_update, log, Cmd, Data, DevInfo, Msg};
 use crate::plugins::plugins_main;
 use crate::{cfg, utils};
 
-const NAME: &str = "mqtt";
+pub const NAME: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
 
 #[derive(Debug)]
@@ -27,10 +27,17 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
 
         log(
             &self.msg_tx,
+            cfg::get_name(),
             Trace,
             format!("[{NAME}] Connecting to MQTT broker"),
         )
@@ -54,6 +61,7 @@ impl Plugin {
         tokio::spawn(async move {
             log(
                 &msg_tx_clone,
+                cfg::get_name(),
                 Trace,
                 format!("[{NAME}] Start to receive mqtt message."),
             )
@@ -71,7 +79,13 @@ impl Plugin {
                         process_event_publish(&msg_tx_clone, &publish).await;
                     }
                     _ => {
-                        log(&msg_tx_clone, Trace, format!("[{NAME}] {notification:?}.")).await;
+                        log(
+                            &msg_tx_clone,
+                            cfg::get_name(),
+                            Trace,
+                            format!("[{NAME}] {notification:?}."),
+                        )
+                        .await;
                     }
                 }
             }
@@ -92,6 +106,7 @@ impl Plugin {
 
         log(
             &self.msg_tx,
+            cfg::get_name(),
             Trace,
             format!("[{NAME}] Connected to MQTT broker."),
         )
@@ -101,8 +116,33 @@ impl Plugin {
     }
 
     async fn show(&mut self) {
-        log(&self.msg_tx, Info, format!("Broker: {BROKER}")).await;
-        log(&self.msg_tx, Info, format!("Id: {}", cfg::get_name())).await;
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Info,
+            format!("Broker: {BROKER}"),
+        )
+        .await;
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Info,
+            format!("Id: {}", cfg::get_name()),
+        )
+        .await;
+    }
+
+    async fn reply(&mut self, cmd: &Cmd) {
+        let enc_msg = utils::encrypt(&cfg::get_key(), &cmd.data[0]).unwrap();
+
+        publish(
+            &self.msg_tx,
+            self.client.as_ref().unwrap(),
+            &format!("tln/{}/reply", cmd.reply),
+            false,
+            &enc_msg,
+        )
+        .await;
     }
 
     async fn send(&mut self, cmd: &Cmd) {
@@ -111,6 +151,7 @@ impl Plugin {
             None => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] Target device is not found."),
                 )
@@ -120,6 +161,7 @@ impl Plugin {
         };
 
         let mut msg = String::new();
+        msg += &format!("r {} ", cfg::get_name());
         for t in &cmd.data[1..] {
             msg += t;
             msg += " ";
@@ -152,9 +194,11 @@ impl plugins_main::Plugin for Plugin {
                 "init" => self.init().await,
                 "show" => self.show().await,
                 "send" => self.send(cmd).await,
+                "reply" => self.reply(cmd).await,
                 _ => {
                     log(
                         &self.msg_tx,
+                        cfg::get_name(),
                         Error,
                         format!("[{NAME}] unknown action: {:?}.", cmd.action),
                     )
@@ -164,6 +208,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}."),
                 )
@@ -174,7 +219,13 @@ impl plugins_main::Plugin for Plugin {
 }
 
 async fn subscribe(msg_tx: &Sender<Msg>, client: &rumqttc::AsyncClient, topic: &str) {
-    log(msg_tx, Trace, format!("[{NAME}] -> subscribe: {topic}")).await;
+    log(
+        msg_tx,
+        cfg::get_name(),
+        Trace,
+        format!("[{NAME}] -> subscribe: {topic}"),
+    )
+    .await;
 
     client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
 }
@@ -188,6 +239,7 @@ async fn publish(
 ) {
     log(
         msg_tx,
+        cfg::get_name(),
         Trace,
         format!("[{NAME}] -> publish: {topic}, '{payload}'"),
     )
@@ -200,6 +252,7 @@ async fn publish(
     {
         log(
             msg_tx,
+            cfg::get_name(),
             Error,
             format!("[{NAME}] Failed to publish: {topic}, '{payload}'."),
         )
@@ -214,7 +267,16 @@ async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
     if process_event_publish_ask(msg_tx, publish).await {
         return;
     }
-    log(msg_tx, Trace, format!("[{NAME}] <- ({publish:?})")).await;
+    if process_event_publish_reply(msg_tx, publish).await {
+        return;
+    }
+    log(
+        msg_tx,
+        cfg::get_name(),
+        Trace,
+        format!("[{NAME}] <- ({publish:?})"),
+    )
+    .await;
 }
 
 async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
@@ -234,6 +296,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
 
             log(
                 msg_tx,
+                cfg::get_name(),
                 Trace,
                 format!("[{NAME}] <- publish::ask: {name}, '{dec_payload}'"),
             )
@@ -241,37 +304,126 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
 
             if name == cfg::get_name() {
                 if let Some(t) = payload_vec.first() {
-                    if t != "p" {
-                        log(msg_tx, Error, format!("[{NAME}] p is not existed.")).await;
+                    if t != "r" {
+                        log(
+                            msg_tx,
+                            cfg::get_name(),
+                            Error,
+                            format!("[{NAME}] r is not existed."),
+                        )
+                        .await;
                         return true;
                     }
                 } else {
-                    log(msg_tx, Error, format!("[{NAME}] p is not existed.")).await;
+                    log(
+                        msg_tx,
+                        cfg::get_name(),
+                        Error,
+                        format!("[{NAME}] r is not existed."),
+                    )
+                    .await;
                     return true;
                 };
 
-                let plugin = if let Some(t) = payload_vec.get(1) {
+                let reply = if let Some(t) = payload_vec.get(1) {
                     t.to_owned()
                 } else {
-                    log(msg_tx, Error, format!("[{NAME}] plugin is not existed.")).await;
+                    log(
+                        msg_tx,
+                        cfg::get_name(),
+                        Error,
+                        format!("[{NAME}] reply is not existed."),
+                    )
+                    .await;
                     return true;
                 };
 
-                let action = if let Some(t) = payload_vec.get(2) {
+                if let Some(t) = payload_vec.get(2) {
+                    if t != "p" {
+                        log(
+                            msg_tx,
+                            cfg::get_name(),
+                            Error,
+                            format!("[{NAME}] p is not existed."),
+                        )
+                        .await;
+                        return true;
+                    }
+                } else {
+                    log(
+                        msg_tx,
+                        cfg::get_name(),
+                        Error,
+                        format!("[{NAME}] p is not existed."),
+                    )
+                    .await;
+                    return true;
+                };
+
+                let plugin = if let Some(t) = payload_vec.get(3) {
                     t.to_owned()
                 } else {
-                    log(msg_tx, Error, format!("[{NAME}] action is not existed.")).await;
+                    log(
+                        msg_tx,
+                        cfg::get_name(),
+                        Error,
+                        format!("[{NAME}] plugin is not existed."),
+                    )
+                    .await;
+                    return true;
+                };
+
+                let action = if let Some(t) = payload_vec.get(4) {
+                    t.to_owned()
+                } else {
+                    log(
+                        msg_tx,
+                        cfg::get_name(),
+                        Error,
+                        format!("[{NAME}] action is not existed."),
+                    )
+                    .await;
                     return true;
                 };
 
                 let mut data = vec![];
-                for i in 3..=7 {
+                for i in 5..=9 {
                     if let Some(t) = payload_vec.get(i) {
                         data.push(t.to_owned());
                     }
                 }
 
-                msg::cmd(msg_tx, plugin, action, data).await;
+                msg::cmd(msg_tx, reply, plugin, action, data).await;
+            }
+        }
+
+        return true;
+    }
+
+    false
+}
+
+async fn process_event_publish_reply(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
+    let topic = &publish.topic;
+
+    let re = regex::Regex::new(r"^tln/([^/]+)/reply$").unwrap();
+    if let Some(captures) = re.captures(topic) {
+        if let Some(name) = captures.get(1) {
+            let name = name.as_str();
+
+            if name == cfg::get_name() {
+                let payload = std::str::from_utf8(&publish.payload).unwrap();
+                let dec_payload = utils::decrypt(&cfg::get_key(), payload).unwrap();
+
+                log(
+                    msg_tx,
+                    cfg::get_name(),
+                    Trace,
+                    format!("[{NAME}] <- publish::reply: {name}, '{dec_payload}'"),
+                )
+                .await;
+
+                log(msg_tx, cfg::get_name(), Info, format!("R: {dec_payload}")).await;
             }
         }
 
@@ -294,6 +446,7 @@ async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) 
                 Err(e) => {
                     log(
                         msg_tx,
+                        cfg::get_name(),
                         Error,
                         format!("[{NAME}] Error: <- publish::onboard: {name}. Err: {e:?}."),
                     )
@@ -304,6 +457,7 @@ async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) 
             if onboard != 0 && onboard != 1 {
                 log(
                     msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!(
                         "[{NAME}] Error: <- publish::onboard: {name}. Wrong onboard: '{onboard}'."
@@ -315,6 +469,7 @@ async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) 
 
             log(
                 msg_tx,
+                cfg::get_name(),
                 Trace,
                 format!("[{NAME}] <- publish::onboard: {name}, '{onboard}'"),
             )

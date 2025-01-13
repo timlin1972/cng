@@ -52,6 +52,7 @@ impl App {
     ) -> Result<(), Box<dyn std::error::Error>> {
         log(
             &self.msg_tx,
+            cfg::get_name(),
             Info,
             format!("Welcome to {}!", cfg::get_name()),
         )

@@ -3,6 +3,7 @@ use log::Level::Error;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
 use crate::msg::{log, Data, Msg};
 use crate::panels::panels_main::{self, Popup};
 use crate::utils;
@@ -79,6 +80,7 @@ impl panels_main::Panel for Panel {
             _ => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

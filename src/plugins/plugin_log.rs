@@ -2,11 +2,12 @@ use async_trait::async_trait;
 use log::Level::{Error, Trace};
 use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
 use crate::msg::{log, Data, Msg};
 use crate::panels::panels_main;
 use crate::plugins::plugins_main;
 
-const NAME: &str = "log";
+pub const NAME: &str = "log";
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -23,7 +24,13 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 }
 
@@ -40,6 +47,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
+                        cfg::get_name(),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -60,6 +68,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

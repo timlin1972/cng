@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
 use crate::msg::{log, Cmd, Data, Msg};
 use crate::plugins::plugins_main;
 
@@ -23,13 +24,20 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     async fn show(&mut self) {
-        log(&self.msg_tx, Info, "linds".to_owned()).await;
+        log(&self.msg_tx, cfg::get_name(), Info, "linds".to_owned()).await;
         log(
             &self.msg_tx,
+            cfg::get_name(),
             Info,
             format!(
                 "  mac: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
@@ -51,6 +59,7 @@ impl Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
+                        cfg::get_name(),
                         Error,
                         format!("[{NAME}] Device '{t}' not found."),
                     )
@@ -61,6 +70,7 @@ impl Plugin {
             None => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] Please fill device name."),
                 )
@@ -71,11 +81,18 @@ impl Plugin {
 
         match wol::send_wol(wol::MacAddr(mac), None, None) {
             Ok(_) => {
-                log(&self.msg_tx, Info, format!("[{NAME}] Send wol ok.")).await;
+                log(
+                    &self.msg_tx,
+                    cfg::get_name(),
+                    Info,
+                    format!("[{NAME}] Send wol ok."),
+                )
+                .await;
             }
             Err(e) => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] Failed to send wol. Err: {e:?}"),
                 )
@@ -100,6 +117,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
+                        cfg::get_name(),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -109,6 +127,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

@@ -2,11 +2,12 @@ use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
 use crate::msg::{devices, log, Cmd, Data, DevInfo, Msg};
 use crate::plugins::plugins_main;
 use crate::utils;
 
-const NAME: &str = "devices";
+pub const NAME: &str = "devices";
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -36,19 +37,33 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, Trace, format!("[{NAME}] init")).await;
-    }
-
-    async fn show_device(&self, device: &DevInfo) {
-        log(&self.msg_tx, Info, device.name.to_string()).await;
         log(
             &self.msg_tx,
+            cfg::get_name(),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
+    }
+
+    async fn show_device(&self, cmd: &Cmd, device: &DevInfo) {
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            device.name.to_string(),
+        )
+        .await;
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
             Info,
             format!("    Onboard: {}", if device.onboard { "On" } else { "off" }),
         )
         .await;
         log(
             &self.msg_tx,
+            cmd.reply.clone(),
             Info,
             format!("    Last update: {}", utils::ts_str_full(device.ts)),
         )
@@ -59,10 +74,16 @@ impl Plugin {
         for device in &self.devices {
             if let Some(t) = &cmd.data.first() {
                 if *t == &device.name {
-                    self.show_device(device).await;
+                    self.show_device(cmd, device).await;
                 }
             } else {
-                log(&self.msg_tx, Info, device.name.to_string()).await;
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    device.name.to_string(),
+                )
+                .await;
             }
         }
     }
@@ -82,6 +103,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
+                        cmd.reply.clone(),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -94,6 +116,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

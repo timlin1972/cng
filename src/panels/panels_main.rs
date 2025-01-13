@@ -10,6 +10,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
 use crate::msg::{log, Data, Msg};
 use crate::panels::{panel_brief, panel_devices, panel_error, panel_log};
 
@@ -219,6 +220,7 @@ impl Panels {
             _ => {
                 log(
                     &self.msg_tx,
+                    cfg::get_name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
 use crate::msg::{cmd, log, Data, Msg};
 use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt, plugin_wol};
 
@@ -31,10 +32,17 @@ impl Plugins {
     }
 
     pub async fn init(&mut self) {
-        log(&self.msg_tx, Info, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Info,
+            format!("[{NAME}] init"),
+        )
+        .await;
         for plugin in &mut self.plugins {
             cmd(
                 &self.msg_tx,
+                cfg::get_name(),
                 plugin.name().to_owned(),
                 "init".to_owned(),
                 vec![],
@@ -49,7 +57,13 @@ impl Plugins {
 
     async fn show(&mut self) {
         for plugin in &self.plugins {
-            log(&self.msg_tx, Info, plugin.name().to_string()).await;
+            log(
+                &self.msg_tx,
+                cfg::get_name(),
+                Info,
+                plugin.name().to_string(),
+            )
+            .await;
         }
     }
 
@@ -61,6 +75,7 @@ impl Plugins {
                     _ => {
                         log(
                             &self.msg_tx,
+                            cfg::get_name(),
                             Error,
                             format!("[{NAME}] unknown action: {:?}", cmd.action),
                         )
@@ -70,6 +85,7 @@ impl Plugins {
                 _ => {
                     log(
                         &self.msg_tx,
+                        cfg::get_name(),
                         Error,
                         format!("[{NAME}] unknown msg: {msg:?}"),
                     )
@@ -82,6 +98,7 @@ impl Plugins {
                 None => {
                     log(
                         &self.msg_tx,
+                        cfg::get_name(),
                         Info,
                         format!("[{NAME}] Plugin '{}' not found", msg.plugin),
                     )

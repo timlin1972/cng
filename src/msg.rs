@@ -1,5 +1,8 @@
 use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
+use crate::panels::panels_main;
+use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt};
 use crate::utils;
 
 #[derive(Debug, Clone)]
@@ -19,6 +22,7 @@ pub struct Msg {
 
 #[derive(Debug, Clone)]
 pub struct Cmd {
+    pub reply: String,
     pub action: String,
     pub data: Vec<String>,
 }
@@ -36,22 +40,37 @@ pub struct DevInfo {
     pub onboard: bool,
 }
 
-pub async fn log(msg_tx: &Sender<Msg>, level: log::Level, msg: String) {
-    msg_tx
-        .send(Msg {
-            ts: utils::ts(),
-            plugin: "log".to_owned(),
-            data: Data::Log(Log { level, msg }),
-        })
-        .await
-        .unwrap();
+pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {
+    if reply == cfg::get_name() {
+        msg_tx
+            .send(Msg {
+                ts: utils::ts(),
+                plugin: plugin_log::NAME.to_owned(),
+                data: Data::Log(Log { level, msg }),
+            })
+            .await
+            .unwrap();
+    } else {
+        msg_tx
+            .send(Msg {
+                ts: utils::ts(),
+                plugin: plugin_mqtt::NAME.to_owned(),
+                data: Data::Cmd(Cmd {
+                    reply,
+                    action: "reply".to_owned(),
+                    data: vec![format!("{level:?} {msg}")],
+                }),
+            })
+            .await
+            .unwrap();
+    }
 }
 
 pub async fn devices(msg_tx: &Sender<Msg>, devices: Vec<DevInfo>) {
     msg_tx
         .send(Msg {
             ts: utils::ts(),
-            plugin: "panels".to_owned(),
+            plugin: panels_main::NAME.to_owned(),
             data: Data::Devices(devices),
         })
         .await
@@ -62,7 +81,7 @@ pub async fn device_update(msg_tx: &Sender<Msg>, device: DevInfo) {
     msg_tx
         .send(Msg {
             ts: utils::ts(),
-            plugin: "devices".to_owned(),
+            plugin: plugin_devices::NAME.to_owned(),
             data: Data::DeviceUpdate(device),
         })
         .await
@@ -70,12 +89,22 @@ pub async fn device_update(msg_tx: &Sender<Msg>, device: DevInfo) {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn cmd(msg_tx: &Sender<Msg>, plugin: String, action: String, data: Vec<String>) {
+pub async fn cmd(
+    msg_tx: &Sender<Msg>,
+    reply: String,
+    plugin: String,
+    action: String,
+    data: Vec<String>,
+) {
     msg_tx
         .send(Msg {
             ts: utils::ts(),
             plugin,
-            data: Data::Cmd(Cmd { action, data }),
+            data: Data::Cmd(Cmd {
+                reply,
+                action,
+                data,
+            }),
         })
         .await
         .unwrap();
