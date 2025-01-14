@@ -1,3 +1,5 @@
+use std::net::{IpAddr, ToSocketAddrs};
+
 use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
@@ -6,8 +8,7 @@ use crate::msg::{log, Cmd, Data, Msg};
 use crate::plugins::plugins_main;
 use crate::{cfg, msg};
 
-const NAME: &str = "wol";
-const LIN_DS_MAC: [u8; 6] = [0x90, 0x09, 0xd0, 0x64, 0x4e, 0xa4];
+pub const NAME: &str = "ping";
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -33,72 +34,58 @@ impl Plugin {
         .await;
     }
 
-    async fn show(&mut self) {
-        log(&self.msg_tx, cfg::get_name(), Info, "linds".to_owned()).await;
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Info,
-            format!(
-                "  mac: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-                LIN_DS_MAC[0],
-                LIN_DS_MAC[1],
-                LIN_DS_MAC[2],
-                LIN_DS_MAC[3],
-                LIN_DS_MAC[4],
-                LIN_DS_MAC[5],
-            ),
-        )
-        .await;
-    }
-
-    async fn wake(&mut self, cmd: &Cmd) {
-        let mac = match &cmd.data.first() {
-            Some(t) => match t.as_str() {
-                "linds" => LIN_DS_MAC,
-                _ => {
-                    log(
-                        &self.msg_tx,
-                        cmd.reply.clone(),
-                        Error,
-                        format!("[{NAME}] Device '{t}' not found."),
-                    )
-                    .await;
-                    return;
-                }
-            },
+    async fn ping(&mut self, cmd: &Cmd) {
+        let target = match &cmd.data.first() {
+            Some(t) => t.to_owned(),
             None => {
                 log(
                     &self.msg_tx,
                     cmd.reply.clone(),
                     Error,
-                    format!("[{NAME}] Device is missing."),
+                    format!("[{NAME}] Destination is missing."),
                 )
                 .await;
                 return;
             }
         };
 
-        match wol::send_wol(wol::MacAddr(mac), None, None) {
-            Ok(_) => {
-                log(
-                    &self.msg_tx,
-                    cmd.reply.clone(),
-                    Info,
-                    format!("[{NAME}] Send wol ok."),
-                )
-                .await;
-            }
+        let ip = match resolve_to_ip(target) {
+            Ok(ip) => ip,
             Err(e) => {
                 log(
                     &self.msg_tx,
                     cmd.reply.clone(),
                     Error,
-                    format!("[{NAME}] Failed to send wol. Err: {e:?}"),
+                    format!("[{NAME}] Failed to resolve {target}: {e}"),
                 )
                 .await;
+                return;
             }
-        }
+        };
+
+        let payload = [0; 8];
+
+        let (_packet, duration) = match surge_ping::ping(ip, &payload).await {
+            Ok((_packet, duration)) => (_packet, duration),
+            Err(e) => {
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] Failed to ping: {e}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("[{NAME}] Ping took {duration:.3?}"),
+        )
+        .await;
     }
 }
 
@@ -112,8 +99,7 @@ impl plugins_main::Plugin for Plugin {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
                 msg::ACT_INIT => self.init().await,
-                msg::ACT_SHOW => self.show().await,
-                msg::ACT_WAKE => self.wake(cmd).await,
+                msg::ACT_PING => self.ping(cmd).await,
                 _ => {
                     log(
                         &self.msg_tx,
@@ -137,4 +123,16 @@ impl plugins_main::Plugin for Plugin {
 
         false
     }
+}
+
+fn resolve_to_ip(input: &str) -> Result<IpAddr, std::io::Error> {
+    if let Ok(ip) = input.parse::<IpAddr>() {
+        return Ok(ip);
+    }
+
+    let addrs = (input, 0).to_socket_addrs()?;
+    addrs
+        .map(|addr| addr.ip())
+        .next()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No IP address found"))
 }

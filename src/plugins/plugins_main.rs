@@ -4,7 +4,9 @@ use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
 use crate::msg::{self, cmd, log, Cmd, Data, Msg};
-use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt, plugin_system, plugin_wol};
+use crate::plugins::{
+    plugin_devices, plugin_log, plugin_mqtt, plugin_ping, plugin_system, plugin_wol,
+};
 
 pub const NAME: &str = "plugins";
 
@@ -27,6 +29,7 @@ impl Plugins {
             Box::new(plugin_mqtt::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
             Box::new(plugin_wol::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
             Box::new(plugin_system::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
+            Box::new(plugin_ping::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
         ];
 
         Self { plugins, msg_tx }

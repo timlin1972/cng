@@ -30,6 +30,7 @@ pub struct Msg {
 //  publish     mqtt        topic               retain  payload -       -
 //  disconnect  mqtt        -                   -       -       -       -
 //  wake        wol         device              -       -       -       -
+//  ping        ping        ip                  -       -       -       -
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
 pub const ACT_SEND: &str = "send";
@@ -38,6 +39,7 @@ pub const ACT_QUIT: &str = "quit";
 pub const ACT_PUBLISH: &str = "publish";
 pub const ACT_DISCONNECT: &str = "disconnect";
 pub const ACT_WAKE: &str = "wake";
+pub const ACT_PING: &str = "ping";
 
 #[derive(Debug, Clone)]
 pub struct Cmd {
