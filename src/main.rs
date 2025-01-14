@@ -1,6 +1,5 @@
 mod app;
 mod cfg;
-mod log_to_file;
 mod msg;
 mod panels;
 mod plugins;
