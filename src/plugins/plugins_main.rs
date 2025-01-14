@@ -3,7 +3,7 @@ use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, cmd, log, Data, Msg, Cmd};
+use crate::msg::{self, cmd, log, Cmd, Data, Msg};
 use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt, plugin_system, plugin_wol};
 
 pub const NAME: &str = "plugins";

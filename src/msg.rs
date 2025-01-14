@@ -20,21 +20,23 @@ pub struct Msg {
     pub data: Data,
 }
 
-//          plugin      data[0]             data[1] data[2] data[3] data[4]
-//  show    devices     device (optional)   -       -       -       -
-//  show    others      -                   -       -       -       -
-//  init    all         -                   -       -       -       -
-//  send    all         target_device       p       plugin  action  -
-//  reply   all         level               msg     -       -       -
-//  quit    all         -                   -       -       -       -
-//  publish mqtt        topic               retain  payload -       -
-//  wake    wol         device              -       -       -       -
+//              plugin      data[0]             data[1] data[2] data[3] data[4]
+//  show        devices     device (optional)   -       -       -       -
+//  show        others      -                   -       -       -       -
+//  init        all         -                   -       -       -       -
+//  send        all         target_device       p       plugin  action  -
+//  reply       all         level               msg     -       -       -
+//  quit        all         -                   -       -       -       -
+//  publish     mqtt        topic               retain  payload -       -
+//  disconnect  mqtt        -                   -       -       -       -
+//  wake        wol         device              -       -       -       -
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
 pub const ACT_SEND: &str = "send";
 pub const ACT_REPLY: &str = "reply";
 pub const ACT_QUIT: &str = "quit";
 pub const ACT_PUBLISH: &str = "publish";
+pub const ACT_DISCONNECT: &str = "disconnect";
 pub const ACT_WAKE: &str = "wake";
 
 #[derive(Debug, Clone)]

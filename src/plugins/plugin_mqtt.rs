@@ -191,6 +191,12 @@ impl Plugin {
         )
         .await;
     }
+
+    async fn disconnect(&mut self) {
+        if let Some(t) = &self.client {
+            let _ = t.disconnect().await;
+        }
+    }
 }
 
 #[async_trait]
@@ -207,6 +213,7 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_SEND => self.send(cmd).await,
                 msg::ACT_REPLY => self.reply(cmd).await,
                 msg::ACT_PUBLISH => self.publish(cmd).await,
+                msg::ACT_DISCONNECT => self.disconnect().await,
                 _ => {
                     log(
                         &self.msg_tx,
@@ -269,6 +276,23 @@ async fn publish(
             cfg::get_name(),
             Error,
             format!("[{NAME}] Failed to publish: {topic}, '{payload}'."),
+        )
+        .await;
+
+        msg::cmd(
+            msg_tx,
+            cfg::get_name(),
+            NAME.to_owned(),
+            msg::ACT_DISCONNECT.to_owned(),
+            vec![],
+        )
+        .await;
+        msg::cmd(
+            msg_tx,
+            cfg::get_name(),
+            NAME.to_owned(),
+            msg::ACT_INIT.to_owned(),
+            vec![],
         )
         .await;
     }
