@@ -43,7 +43,7 @@ pub fn uptime_str(uptime: u64) -> String {
     let minutes = uptime / 60;
     let seconds = uptime % 60;
 
-    format!("{days}d {hours}:{minutes:02}:{seconds:02}")
+    format!("{days}d {hours:02}:{minutes:02}:{seconds:02}")
 }
 
 pub fn encrypt(key: &str, plaintext: &str) -> Result<String, String> {
