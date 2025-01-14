@@ -65,14 +65,21 @@ impl panels_main::Panel for Panel {
             Data::Devices(devices) => {
                 self.output_clear();
                 self.output_push(format!(
-                    "{:<16} {:<7} {:<11}",
-                    "Name", "Onboard", "Last update"
+                    "{:<16} {:<7} {:16} {:<11}",
+                    "Name", "Onboard", "Uptime", "Last update"
                 ));
                 for device in devices.iter() {
+                    let uptime = if let Some(t) = device.uptime {
+                        utils::uptime_str(t)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
                     self.output_push(format!(
-                        "{:<16} {:<7} {:<11}",
+                        "{:<16} {:<7} {:16} {:<11}",
                         device.name,
-                        if device.onboard { "On" } else { "Off" },
+                        if device.onboard.unwrap() { "On" } else { "Off" },
+                        uptime,
                         utils::ts_str(device.ts)
                     ));
                 }

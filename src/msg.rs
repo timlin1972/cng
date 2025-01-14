@@ -56,7 +56,8 @@ pub struct Log {
 pub struct DevInfo {
     pub ts: u64,
     pub name: String,
-    pub onboard: bool,
+    pub onboard: Option<bool>,
+    pub uptime: Option<u64>,
 }
 
 pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {

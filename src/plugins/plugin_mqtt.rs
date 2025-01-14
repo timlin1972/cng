@@ -308,6 +308,9 @@ async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
     if process_event_publish_reply(msg_tx, publish).await {
         return;
     }
+    if process_event_publish_uptime(msg_tx, publish).await {
+        return;
+    }
     log(
         msg_tx,
         cfg::get_name(),
@@ -494,7 +497,55 @@ async fn process_event_publish_onboard(msg_tx: &Sender<Msg>, publish: &Publish) 
                 DevInfo {
                     ts: utils::ts(),
                     name: name.to_owned(),
-                    onboard: onboard == 1,
+                    onboard: Some(onboard == 1),
+                    uptime: None,
+                },
+            )
+            .await;
+        }
+
+        return true;
+    }
+
+    false
+}
+
+async fn process_event_publish_uptime(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
+    let topic = &publish.topic;
+
+    let re = regex::Regex::new(r"^tln/([^/]+)/uptime$").unwrap();
+    if let Some(captures) = re.captures(topic) {
+        if let Some(name) = captures.get(1) {
+            let name = name.as_str();
+            let payload = std::str::from_utf8(&publish.payload).unwrap();
+            let uptime = match payload.parse::<u64>() {
+                Ok(t) => t,
+                Err(e) => {
+                    log(
+                        msg_tx,
+                        cfg::get_name(),
+                        Error,
+                        format!("[{NAME}] Error: <- publish::uptime: {name}. Err: {e:?}."),
+                    )
+                    .await;
+                    return true;
+                }
+            };
+            log(
+                msg_tx,
+                cfg::get_name(),
+                Trace,
+                format!("[{NAME}] <- publish::uptime: {name}, '{uptime}'"),
+            )
+            .await;
+
+            device_update(
+                msg_tx,
+                DevInfo {
+                    ts: utils::ts(),
+                    name: name.to_owned(),
+                    onboard: None,
+                    uptime: Some(uptime),
                 },
             )
             .await;

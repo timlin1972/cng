@@ -5,6 +5,7 @@ use aes_gcm::{Aes256Gcm, Nonce}; // Or `Aes128Gcm`
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, Local};
 use rand::RngCore;
+use sysinfo::System;
 
 pub fn ts() -> u64 {
     SystemTime::now()
@@ -27,6 +28,22 @@ pub fn ts_str_full(ts: u64) -> String {
         .with_timezone(&Local);
 
     datetime_local.format("%Y-%m-%d %H:%M:%S %:z").to_string()
+}
+
+pub fn uptime() -> u64 {
+    System::uptime()
+}
+
+pub fn uptime_str(uptime: u64) -> String {
+    let mut uptime = uptime;
+    let days = uptime / 86400;
+    uptime -= days * 86400;
+    let hours = uptime / 3600;
+    uptime -= hours * 3600;
+    let minutes = uptime / 60;
+    let seconds = uptime % 60;
+
+    format!("{days}d {hours}:{minutes:02}:{seconds:02}")
 }
 
 pub fn encrypt(key: &str, plaintext: &str) -> Result<String, String> {

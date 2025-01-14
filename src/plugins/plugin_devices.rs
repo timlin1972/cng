@@ -27,8 +27,13 @@ impl Plugin {
 
     async fn device_update(&mut self, device: &DevInfo) {
         if let Some(d) = self.devices.iter_mut().find(|d| d.name == device.name) {
-            d.onboard = device.onboard;
             d.ts = device.ts;
+            if device.onboard.is_some() {
+                d.onboard = device.onboard;
+            }
+            if device.uptime.is_some() {
+                d.uptime = device.uptime;
+            }
         } else {
             self.devices.push(device.clone());
         }
@@ -47,6 +52,7 @@ impl Plugin {
     }
 
     async fn show_device(&self, cmd: &Cmd, device: &DevInfo) {
+        // name
         log(
             &self.msg_tx,
             cmd.reply.clone(),
@@ -54,13 +60,34 @@ impl Plugin {
             device.name.to_string(),
         )
         .await;
+
+        // onboard
         log(
             &self.msg_tx,
             cmd.reply.clone(),
             Info,
-            format!("    Onboard: {}", if device.onboard { "On" } else { "off" }),
+            format!(
+                "    Onboard: {}",
+                if device.onboard.unwrap() { "On" } else { "off" }
+            ),
         )
         .await;
+
+        // uptime
+        let uptime = if let Some(t) = device.uptime {
+            utils::uptime_str(t)
+        } else {
+            "n/a".to_owned()
+        };
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    Uptime: {uptime}"),
+        )
+        .await;
+
+        // last update
         log(
             &self.msg_tx,
             cmd.reply.clone(),

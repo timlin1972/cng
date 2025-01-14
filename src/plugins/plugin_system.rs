@@ -4,7 +4,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::msg::{cmd, log, Data, Msg};
 use crate::plugins::{plugin_mqtt, plugins_main};
-use crate::{cfg, msg};
+use crate::{cfg, msg, utils};
 
 pub const NAME: &str = "system";
 const ONBOARD_POLLING: u64 = 300;
@@ -39,8 +39,18 @@ impl Plugin {
                     &msg_tx_clone,
                     cfg::get_name(),
                     plugin_mqtt::NAME.to_owned(),
-                    "publish".to_owned(),
+                    msg::ACT_PUBLISH.to_owned(),
                     vec!["onboard".to_owned(), "true".to_owned(), "1".to_owned()],
+                )
+                .await;
+
+                let uptime = utils::uptime();
+                cmd(
+                    &msg_tx_clone,
+                    cfg::get_name(),
+                    plugin_mqtt::NAME.to_owned(),
+                    msg::ACT_PUBLISH.to_owned(),
+                    vec!["uptime".to_owned(), "false".to_owned(), uptime.to_string()],
                 )
                 .await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(ONBOARD_POLLING)).await;
