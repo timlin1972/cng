@@ -59,7 +59,7 @@ impl Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::get_name(),
+                        cmd.reply.clone(),
                         Error,
                         format!("[{NAME}] Device '{t}' not found."),
                     )
@@ -70,7 +70,7 @@ impl Plugin {
             None => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cmd.reply.clone(),
                     Error,
                     format!("[{NAME}] Please fill device name."),
                 )
@@ -83,7 +83,7 @@ impl Plugin {
             Ok(_) => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cmd.reply.clone(),
                     Info,
                     format!("[{NAME}] Send wol ok."),
                 )
@@ -92,7 +92,7 @@ impl Plugin {
             Err(e) => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cmd.reply.clone(),
                     Error,
                     format!("[{NAME}] Failed to send wol. Err: {e:?}"),
                 )
@@ -117,7 +117,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::get_name(),
+                        cmd.reply.clone(),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
