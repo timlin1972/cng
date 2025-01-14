@@ -3,15 +3,15 @@ use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{cmd, log, Data, Msg};
-use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt, plugin_wol};
+use crate::msg::{self, cmd, log, Data, Msg, Cmd};
+use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt, plugin_system, plugin_wol};
 
 pub const NAME: &str = "plugins";
 
 #[async_trait]
 pub trait Plugin {
     fn name(&self) -> &str;
-    async fn msg(&mut self, msg: &Msg);
+    async fn msg(&mut self, msg: &Msg) -> bool;
 }
 
 pub struct Plugins {
@@ -26,6 +26,7 @@ impl Plugins {
             Box::new(plugin_devices::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
             Box::new(plugin_mqtt::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
             Box::new(plugin_wol::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
+            Box::new(plugin_system::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
         ];
 
         Self { plugins, msg_tx }
@@ -55,11 +56,11 @@ impl Plugins {
         self.plugins.iter_mut().find(|p| p.name() == name)
     }
 
-    async fn show(&mut self) {
+    async fn show(&mut self, cmd: &Cmd) {
         for plugin in &self.plugins {
             log(
                 &self.msg_tx,
-                cfg::get_name(),
+                cmd.reply.clone(),
                 Info,
                 plugin.name().to_string(),
             )
@@ -67,11 +68,12 @@ impl Plugins {
         }
     }
 
-    pub async fn msg(&mut self, msg: &Msg) {
+    pub async fn msg(&mut self, msg: &Msg) -> bool {
+        let mut ret = false;
         if msg.plugin == NAME {
             match &msg.data {
                 Data::Cmd(cmd) => match cmd.action.as_str() {
-                    "show" => self.show().await,
+                    msg::ACT_SHOW => self.show(cmd).await,
                     _ => {
                         log(
                             &self.msg_tx,
@@ -94,7 +96,7 @@ impl Plugins {
             }
         } else {
             match self.get_plugin_mut(&msg.plugin) {
-                Some(t) => t.msg(msg).await,
+                Some(t) => ret = t.msg(msg).await,
                 None => {
                     log(
                         &self.msg_tx,
@@ -106,5 +108,7 @@ impl Plugins {
                 }
             }
         }
+
+        ret
     }
 }

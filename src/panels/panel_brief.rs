@@ -16,14 +16,18 @@ const HELP_TEXT: &str = r#"Commands:
     h    - Help
     q    - Quit
 
-    p <plugin> <action>
+    p <plugin> <action> ...
         plugin: plugins, device, log, ...
                 use 'p plugins show' to get plugin list
         action: init, show, action
     Example:
+        p plugins show
+        p devices show
         p devices show pi5
-        p wol wake linds
+        p mqtt show
         p mqtt send pi5 p wol wake linds
+        p mqtt send pi5 p system quit
+        p wol wake linds
 "#;
 
 #[derive(Parser, Debug)]

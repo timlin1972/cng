@@ -68,9 +68,8 @@ impl App {
                     if msg.plugin == panels_main::NAME {
                         self.panels.msg(&msg).await;
                     }
-                    else {
-                        self.plugins.msg(&msg).await;
-                    }
+                    else if self.plugins.msg(&msg).await { return Ok(()) }
+
                 }
                 Some(event) = self.key_rx.recv() => {
                     if let Event::Key(key) = event {

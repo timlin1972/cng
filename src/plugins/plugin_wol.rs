@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
-use crate::cfg;
 use crate::msg::{log, Cmd, Data, Msg};
 use crate::plugins::plugins_main;
+use crate::{cfg, msg};
 
 const NAME: &str = "wol";
 const LIN_DS_MAC: [u8; 6] = [0x90, 0x09, 0xd0, 0x64, 0x4e, 0xa4];
@@ -108,12 +108,12 @@ impl plugins_main::Plugin for Plugin {
         self.name.as_str()
     }
 
-    async fn msg(&mut self, msg: &Msg) {
+    async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
-                "init" => self.init().await,
-                "show" => self.show().await,
-                "wake" => self.wake(cmd).await,
+                msg::ACT_INIT => self.init().await,
+                msg::ACT_SHOW => self.show().await,
+                msg::ACT_WAKE => self.wake(cmd).await,
                 _ => {
                     log(
                         &self.msg_tx,
@@ -134,5 +134,7 @@ impl plugins_main::Plugin for Plugin {
                 .await;
             }
         }
+
+        false
     }
 }

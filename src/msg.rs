@@ -20,6 +20,23 @@ pub struct Msg {
     pub data: Data,
 }
 
+//          plugin      data[0]             data[1] data[2] data[3] data[4]
+//  show    devices     device (optional)   -       -       -       -
+//  show    others      -                   -       -       -       -
+//  init    all         -                   -       -       -       -
+//  send    all         target_device       p       plugin  action  -
+//  reply   all         level               msg     -       -       -
+//  quit    all         -                   -       -       -       -
+//  publish mqtt        topic               retain  payload -       -
+//  wake    wol         device              -       -       -       -
+pub const ACT_SHOW: &str = "show";
+pub const ACT_INIT: &str = "init";
+pub const ACT_SEND: &str = "send";
+pub const ACT_REPLY: &str = "reply";
+pub const ACT_QUIT: &str = "quit";
+pub const ACT_PUBLISH: &str = "publish";
+pub const ACT_WAKE: &str = "wake";
+
 #[derive(Debug, Clone)]
 pub struct Cmd {
     pub reply: String,
@@ -58,7 +75,7 @@ pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: St
                 data: Data::Cmd(Cmd {
                     reply,
                     action: "reply".to_owned(),
-                    data: vec![format!("{level:?} {msg}")],
+                    data: vec![level.to_string(), msg],
                 }),
             })
             .await

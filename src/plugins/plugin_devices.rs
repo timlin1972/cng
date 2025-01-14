@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
-use crate::cfg;
 use crate::msg::{devices, log, Cmd, Data, DevInfo, Msg};
 use crate::plugins::plugins_main;
 use crate::utils;
+use crate::{cfg, msg};
 
 pub const NAME: &str = "devices";
 
@@ -95,11 +95,11 @@ impl plugins_main::Plugin for Plugin {
         self.name.as_str()
     }
 
-    async fn msg(&mut self, msg: &Msg) {
+    async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
-                "init" => self.init().await,
-                "show" => self.show(cmd).await,
+                msg::ACT_INIT => self.init().await,
+                msg::ACT_SHOW => self.show(cmd).await,
                 _ => {
                     log(
                         &self.msg_tx,
@@ -123,5 +123,7 @@ impl plugins_main::Plugin for Plugin {
                 .await;
             }
         }
+
+        false
     }
 }

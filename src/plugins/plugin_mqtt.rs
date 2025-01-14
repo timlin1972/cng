@@ -94,23 +94,15 @@ impl Plugin {
         // subscribe
         subscribe(&self.msg_tx, &client, "tln/#").await;
 
-        // publish onboard
-        publish(
-            &self.msg_tx,
-            &client,
-            &format!("tln/{}/onboard", cfg::get_name()),
-            true,
-            "1",
-        )
-        .await;
-
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Trace,
-            format!("[{NAME}] Connected to MQTT broker."),
-        )
-        .await;
+        // keep the following code for reference
+        // publish(
+        //     &self.msg_tx,
+        //     &client,
+        //     &format!("tln/moxa/1"),
+        //     true,
+        //     &"",
+        // )
+        // .await;
 
         self.client = Some(client);
     }
@@ -133,12 +125,20 @@ impl Plugin {
     }
 
     async fn reply(&mut self, cmd: &Cmd) {
-        let enc_msg = utils::encrypt(&cfg::get_key(), &cmd.data[0]).unwrap();
+        let mut msg = String::new();
+        for t in &cmd.data {
+            msg += t;
+            msg += " ";
+        }
+
+        let msg = msg.trim();
+
+        let enc_msg = utils::encrypt(&cfg::get_key(), msg).unwrap();
 
         publish(
             &self.msg_tx,
             self.client.as_ref().unwrap(),
-            &format!("tln/{}/reply", cmd.reply),
+            &format!("tln/{}/{}", cmd.reply, msg::ACT_REPLY),
             false,
             &enc_msg,
         )
@@ -180,6 +180,17 @@ impl Plugin {
         )
         .await;
     }
+
+    async fn publish(&mut self, cmd: &Cmd) {
+        publish(
+            &self.msg_tx,
+            self.client.as_ref().unwrap(),
+            &format!("tln/{}/{}", cfg::get_name(), cmd.data[0]),
+            cmd.data[1] == "true",
+            &cmd.data[2],
+        )
+        .await;
+    }
 }
 
 #[async_trait]
@@ -188,13 +199,14 @@ impl plugins_main::Plugin for Plugin {
         self.name.as_str()
     }
 
-    async fn msg(&mut self, msg: &Msg) {
+    async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
-                "init" => self.init().await,
-                "show" => self.show().await,
-                "send" => self.send(cmd).await,
-                "reply" => self.reply(cmd).await,
+                msg::ACT_INIT => self.init().await,
+                msg::ACT_SHOW => self.show().await,
+                msg::ACT_SEND => self.send(cmd).await,
+                msg::ACT_REPLY => self.reply(cmd).await,
+                msg::ACT_PUBLISH => self.publish(cmd).await,
                 _ => {
                     log(
                         &self.msg_tx,
@@ -215,6 +227,8 @@ impl plugins_main::Plugin for Plugin {
                 .await;
             }
         }
+
+        false
     }
 }
 
@@ -309,7 +323,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
                             msg_tx,
                             cfg::get_name(),
                             Error,
-                            format!("[{NAME}] r is not existed."),
+                            format!("[{NAME}] r is missing."),
                         )
                         .await;
                         return true;
@@ -319,7 +333,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
                         msg_tx,
                         cfg::get_name(),
                         Error,
-                        format!("[{NAME}] r is not existed."),
+                        format!("[{NAME}] r is missing."),
                     )
                     .await;
                     return true;
@@ -332,7 +346,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
                         msg_tx,
                         cfg::get_name(),
                         Error,
-                        format!("[{NAME}] reply is not existed."),
+                        format!("[{NAME}] reply is missing."),
                     )
                     .await;
                     return true;
@@ -340,49 +354,25 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
 
                 if let Some(t) = payload_vec.get(2) {
                     if t != "p" {
-                        log(
-                            msg_tx,
-                            cfg::get_name(),
-                            Error,
-                            format!("[{NAME}] p is not existed."),
-                        )
-                        .await;
+                        log(msg_tx, reply, Error, format!("[{NAME}] p is missing.")).await;
                         return true;
                     }
                 } else {
-                    log(
-                        msg_tx,
-                        cfg::get_name(),
-                        Error,
-                        format!("[{NAME}] p is not existed."),
-                    )
-                    .await;
+                    log(msg_tx, reply, Error, format!("[{NAME}] p is missing.")).await;
                     return true;
                 };
 
                 let plugin = if let Some(t) = payload_vec.get(3) {
                     t.to_owned()
                 } else {
-                    log(
-                        msg_tx,
-                        cfg::get_name(),
-                        Error,
-                        format!("[{NAME}] plugin is not existed."),
-                    )
-                    .await;
+                    log(msg_tx, reply, Error, format!("[{NAME}] plugin is missing.")).await;
                     return true;
                 };
 
                 let action = if let Some(t) = payload_vec.get(4) {
                     t.to_owned()
                 } else {
-                    log(
-                        msg_tx,
-                        cfg::get_name(),
-                        Error,
-                        format!("[{NAME}] action is not existed."),
-                    )
-                    .await;
+                    log(msg_tx, reply, Error, format!("[{NAME}] action is missing.")).await;
                     return true;
                 };
 

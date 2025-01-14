@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use log::Level::{Error, Trace};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{log, Data, Msg};
-use crate::panels::panels_main;
-use crate::plugins::plugins_main;
+use crate::msg::{cmd, log, Data, Msg};
+use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, msg};
 
-pub const NAME: &str = "log";
+pub const NAME: &str = "system";
+const ONBOARD_POLLING: u64 = 300;
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -31,6 +31,21 @@ impl Plugin {
             format!("[{NAME}] init"),
         )
         .await;
+
+        let msg_tx_clone = self.msg_tx.clone();
+        tokio::spawn(async move {
+            loop {
+                cmd(
+                    &msg_tx_clone,
+                    cfg::get_name(),
+                    plugin_mqtt::NAME.to_owned(),
+                    "publish".to_owned(),
+                    vec!["onboard".to_owned(), "true".to_owned(), "1".to_owned()],
+                )
+                .await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(ONBOARD_POLLING)).await;
+            }
+        });
     }
 }
 
@@ -41,9 +56,13 @@ impl plugins_main::Plugin for Plugin {
     }
 
     async fn msg(&mut self, msg: &Msg) -> bool {
+        let mut ret = false;
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
                 msg::ACT_INIT => self.init().await,
+                msg::ACT_QUIT => {
+                    ret = true;
+                }
                 _ => {
                     log(
                         &self.msg_tx,
@@ -54,17 +73,6 @@ impl plugins_main::Plugin for Plugin {
                     .await;
                 }
             },
-            // redirect log to panels
-            Data::Log(log) => {
-                self.msg_tx
-                    .send(Msg {
-                        ts: msg.ts,
-                        plugin: panels_main::NAME.to_owned(),
-                        data: Data::Log(log.clone()),
-                    })
-                    .await
-                    .unwrap();
-            }
             _ => {
                 log(
                     &self.msg_tx,
@@ -76,6 +84,6 @@ impl plugins_main::Plugin for Plugin {
             }
         }
 
-        false
+        ret
     }
 }
