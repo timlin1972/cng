@@ -58,6 +58,7 @@ impl App {
         )
         .await;
 
+        self.panels.init().await;
         self.plugins.init().await;
 
         loop {

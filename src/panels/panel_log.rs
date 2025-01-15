@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::Level::Error;
+use log::Level::{Error, Trace};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
@@ -48,6 +48,16 @@ impl Panel {
 impl panels_main::Panel for Panel {
     fn name(&self) -> &str {
         self.name.as_str()
+    }
+
+    async fn init(&mut self) {
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     fn input(&self) -> &str {

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::Level::Error;
+use log::Level::{Error, Trace};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
@@ -44,6 +44,16 @@ impl panels_main::Panel for Panel {
         self.name.as_str()
     }
 
+    async fn init(&mut self) {
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
+    }
+
     fn input(&self) -> &str {
         self.input.as_str()
     }
@@ -65,22 +75,44 @@ impl panels_main::Panel for Panel {
             Data::Devices(devices) => {
                 self.output_clear();
                 self.output_push(format!(
-                    "{:<16} {:<7} {:16} {:<11}",
-                    "Name", "Onboard", "Uptime", "Last update"
+                    "{:<12} {:<7} {:16} {:<10} {:<11} {:<10}",
+                    "Name", "Onboard", "Uptime", "Version", "Last update", "Countdown"
                 ));
                 for device in devices.iter() {
+                    let onboard = if let Some(t) = device.onboard {
+                        if t {
+                            "On"
+                        } else {
+                            "Off"
+                        }
+                    } else {
+                        "n/a"
+                    };
+
                     let uptime = if let Some(t) = device.uptime {
                         utils::uptime_str(t)
                     } else {
                         "n/a".to_owned()
                     };
 
+                    let version = if let Some(t) = &device.version {
+                        t.clone()
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // countdown
+                    let remaining: i64 = 10 - ((utils::ts() + 1 - device.ts) / 60) as i64; // +1 to avoid overflow
+                    let countdown = if remaining > 0 {
+                        remaining.to_string()
+                    } else {
+                        "failed".to_owned()
+                    };
+
                     self.output_push(format!(
-                        "{:<16} {:<7} {:16} {:<11}",
+                        "{:<12} {onboard:<7} {uptime:16} {version:<10} {:<11} {countdown:<10}",
                         device.name,
-                        if device.onboard.unwrap() { "On" } else { "Off" },
-                        uptime,
-                        utils::ts_str(device.ts)
+                        utils::ts_str(device.ts),
                     ));
                 }
             }

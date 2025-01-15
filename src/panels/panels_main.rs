@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::Level::Error;
+use log::Level::{Error, Info};
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Direction, Layout, Position, Rect},
@@ -28,6 +28,7 @@ pub struct Popup {
 #[async_trait]
 pub trait Panel {
     fn name(&self) -> &str;
+    async fn init(&mut self);
     fn input(&self) -> &str;
     fn output(&self) -> &Vec<String>;
     fn output_clear(&mut self);
@@ -59,6 +60,19 @@ impl Panels {
             panels,
             active_panel: 1, // panel_brief
             msg_tx,
+        }
+    }
+
+    pub async fn init(&mut self) {
+        log(
+            &self.msg_tx,
+            cfg::get_name(),
+            Info,
+            format!("[{NAME}] init"),
+        )
+        .await;
+        for panel in &mut self.panels {
+            panel.init().await;
         }
     }
 

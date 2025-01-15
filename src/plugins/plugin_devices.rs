@@ -3,11 +3,12 @@ use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
 use crate::msg::{devices, log, Cmd, Data, DevInfo, Msg};
-use crate::plugins::plugins_main;
+use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::utils;
 use crate::{cfg, msg};
 
 pub const NAME: &str = "devices";
+const DEVICES_POLLING: u64 = 60;
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -26,16 +27,48 @@ impl Plugin {
     }
 
     async fn device_update(&mut self, device: &DevInfo) {
+        async fn ask_device_update(msg_tx: &Sender<Msg>, device_name: &str) {
+            msg::cmd(
+                msg_tx,
+                cfg::get_name(),
+                plugin_mqtt::NAME.to_owned(),
+                msg::ACT_ASK.to_owned(),
+                vec![
+                    device_name.to_owned(),
+                    "p".to_owned(),
+                    "system".to_owned(),
+                    "update".to_owned(),
+                ],
+            )
+            .await;
+        }
+
         if let Some(d) = self.devices.iter_mut().find(|d| d.name == device.name) {
             d.ts = device.ts;
             if device.onboard.is_some() {
+                // ask system update if onboard from false to true
+                if device.onboard.unwrap() && (d.onboard.is_none() || !d.onboard.unwrap()) {
+                    ask_device_update(&self.msg_tx, &device.name).await;
+                }
                 d.onboard = device.onboard;
             }
             if device.uptime.is_some() {
                 d.uptime = device.uptime;
             }
+            if device.version.is_some() {
+                d.version = device.version.clone();
+            }
+
+            // clear all if not onboard
+            if device.onboard.is_some() && !device.onboard.unwrap() {
+                d.uptime = None;
+                d.version = None;
+            }
         } else {
             self.devices.push(device.clone());
+            if device.onboard.is_some() && device.onboard.unwrap() {
+                ask_device_update(&self.msg_tx, &device.name).await;
+            }
         }
 
         devices(&self.msg_tx, self.devices.clone()).await;
@@ -49,6 +82,21 @@ impl Plugin {
             format!("[{NAME}] init"),
         )
         .await;
+
+        let msg_tx_clone = self.msg_tx.clone();
+        tokio::spawn(async move {
+            loop {
+                msg::cmd(
+                    &msg_tx_clone,
+                    cfg::get_name(),
+                    NAME.to_owned(),
+                    msg::ACT_COUNTDOWN.to_owned(),
+                    vec![],
+                )
+                .await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(DEVICES_POLLING)).await;
+            }
+        });
     }
 
     async fn show_device(&self, cmd: &Cmd, device: &DevInfo) {
@@ -84,6 +132,16 @@ impl Plugin {
             cmd.reply.clone(),
             Info,
             format!("    Uptime: {uptime}"),
+        )
+        .await;
+
+        // version
+        let version = device.version.clone().unwrap_or("n/a".to_owned());
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    Version: {version}"),
         )
         .await;
 
@@ -127,6 +185,9 @@ impl plugins_main::Plugin for Plugin {
             Data::Cmd(cmd) => match cmd.action.as_str() {
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_SHOW => self.show(cmd).await,
+                msg::ACT_COUNTDOWN => {
+                    devices(&self.msg_tx, self.devices.clone()).await;
+                }
                 _ => {
                     log(
                         &self.msg_tx,

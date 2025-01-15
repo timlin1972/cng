@@ -24,22 +24,26 @@ pub struct Msg {
 //  show        devices     device (optional)   -       -       -       -
 //  show        others      -                   -       -       -       -
 //  init        all         -                   -       -       -       -
-//  send        all         target_device       p       plugin  action  -
+//  ask         mqtt        target_device       p       plugin  action  -
 //  reply       all         level               msg     -       -       -
 //  quit        all         -                   -       -       -       -
 //  publish     mqtt        topic               retain  payload -       -
 //  disconnect  mqtt        -                   -       -       -       -
 //  wake        wol         device              -       -       -       -
 //  ping        ping        ip                  -       -       -       -
+//  countdown   devices     -                   -       -       -       -
+//  update      system      -                   -       -       -       -
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
-pub const ACT_SEND: &str = "send";
+pub const ACT_ASK: &str = "ask";
 pub const ACT_REPLY: &str = "reply";
 pub const ACT_QUIT: &str = "quit";
 pub const ACT_PUBLISH: &str = "publish";
 pub const ACT_DISCONNECT: &str = "disconnect";
 pub const ACT_WAKE: &str = "wake";
 pub const ACT_PING: &str = "ping";
+pub const ACT_COUNTDOWN: &str = "countdown";
+pub const ACT_UPDATE: &str = "update";
 
 #[derive(Debug, Clone)]
 pub struct Cmd {
@@ -60,6 +64,7 @@ pub struct DevInfo {
     pub name: String,
     pub onboard: Option<bool>,
     pub uptime: Option<u64>,
+    pub version: Option<String>,
 }
 
 pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {
