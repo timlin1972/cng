@@ -33,6 +33,9 @@ pub struct Msg {
 //  ping        ping        ip                  -       -       -       -
 //  countdown   devices     -                   -       -       -       -
 //  update      system      -                   -       -       -       -
+//  start       shell       -                   -       -       -       -
+//  cmd         shell       cmd                 -       -       -       -
+//  stop        shell       -                   -       -       -       -
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
 pub const ACT_ASK: &str = "ask";
@@ -44,6 +47,9 @@ pub const ACT_WAKE: &str = "wake";
 pub const ACT_PING: &str = "ping";
 pub const ACT_COUNTDOWN: &str = "countdown";
 pub const ACT_UPDATE: &str = "update";
+pub const ACT_START: &str = "start";
+pub const ACT_STOP: &str = "stop";
+pub const ACT_CMD: &str = "cmd";
 
 #[derive(Debug, Clone)]
 pub struct Cmd {
