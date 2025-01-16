@@ -58,11 +58,15 @@ impl Plugin {
             if device.version.is_some() {
                 d.version = device.version.clone();
             }
+            if device.temperature.is_some() {
+                d.temperature = device.temperature;
+            }
 
             // clear all if not onboard
             if device.onboard.is_some() && !device.onboard.unwrap() {
                 d.uptime = None;
                 d.version = None;
+                d.temperature = None;
             }
         } else {
             self.devices.push(device.clone());

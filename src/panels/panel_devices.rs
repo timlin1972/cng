@@ -69,10 +69,11 @@ impl panels_main::Panel for Panel {
             Data::Devices(devices) => {
                 self.output_clear();
                 self.output_push(format!(
-                    "{:<12} {:<7} {:16} {:<10} {:<11} {:<10}",
-                    "Name", "Onboard", "Uptime", "Version", "Last update", "Countdown"
+                    "{:<12} {:<7} {:13} {:<10} {:<7} {:<11} {:<10}",
+                    "Name", "Onboard", "Uptime", "Version", "Temp", "Last update", "Countdown"
                 ));
                 for device in devices.iter() {
+                    // onboard
                     let onboard = if let Some(t) = device.onboard {
                         if t {
                             "On"
@@ -83,14 +84,23 @@ impl panels_main::Panel for Panel {
                         "n/a"
                     };
 
+                    // uptime
                     let uptime = if let Some(t) = device.uptime {
                         utils::uptime_str(t)
                     } else {
                         "n/a".to_owned()
                     };
 
+                    // version
                     let version = if let Some(t) = &device.version {
                         t.clone()
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // temperature
+                    let temperature = if let Some(t) = device.temperature {
+                        format!("{:.1}°C", t)
                     } else {
                         "n/a".to_owned()
                     };
@@ -104,7 +114,7 @@ impl panels_main::Panel for Panel {
                     };
 
                     self.output_push(format!(
-                        "{:<12} {onboard:<7} {uptime:16} {version:<10} {:<11} {countdown:<10}",
+                        "{:<12} {onboard:<7} {uptime:13} {version:<10} {temperature:<7} {:<11} {countdown:<10}",
                         device.name,
                         utils::ts_str(device.ts),
                     ));

@@ -71,6 +71,7 @@ pub struct DevInfo {
     pub onboard: Option<bool>,
     pub uptime: Option<u64>,
     pub version: Option<String>,
+    pub temperature: Option<f32>,
 }
 
 pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {

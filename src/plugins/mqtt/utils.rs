@@ -303,13 +303,13 @@ async fn process_event_publish_reply(msg_tx: &Sender<Msg>, publish: &Publish) ->
 async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
     let topic = &publish.topic;
 
-    let re = regex::Regex::new(r"^tln/([^/]+)/(onboard|uptime|version)$").unwrap();
+    let re = regex::Regex::new(r"^tln/([^/]+)/(onboard|uptime|version|temperature)$").unwrap();
     if let Some(captures) = re.captures(topic) {
         let name = &captures[1];
         let key = &captures[2];
         let payload = std::str::from_utf8(&publish.payload).unwrap();
 
-        let (onboard, uptime, version) = match key {
+        let (onboard, uptime, version, temperature) = match key {
             "onboard" => {
                 let onboard = match payload.parse::<u64>() {
                     Ok(t) => t,
@@ -338,7 +338,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     return true;
                 }
 
-                (Some(onboard == 1), None, None)
+                (Some(onboard == 1), None, None, None)
             }
             "uptime" => {
                 let uptime = match payload.parse::<u64>() {
@@ -354,9 +354,25 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                         return true;
                     }
                 };
-                (None, Some(uptime), None)
+                (None, Some(uptime), None, None)
             }
-            "version" => (None, None, Some(payload.to_owned())),
+            "version" => (None, None, Some(payload.to_owned()), None),
+            "temperature" => {
+                let temperature = match payload.parse::<f32>() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log(
+                            msg_tx,
+                            cfg::name(),
+                            Error,
+                            format!("[{NAME}] Error: <- publish::temperature: {name}: {e:?}."),
+                        )
+                        .await;
+                        return true;
+                    }
+                };
+                (None, None, None, Some(temperature))
+            }
             _ => {
                 log(
                     msg_tx,
@@ -385,6 +401,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 onboard,
                 uptime,
                 version,
+                temperature,
             },
         )
         .await;

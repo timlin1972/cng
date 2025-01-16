@@ -7,8 +7,19 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.0.6";
+const VERSION: &str = "0.0.7";
 const ONBOARD_POLLING: u64 = 300;
+
+fn get_temperature() -> f32 {
+    let components = sysinfo::Components::new_with_refreshed_list();
+    for component in &components {
+        if component.label().to_ascii_lowercase().contains("cpu") {
+            return component.temperature().unwrap_or(0.0);
+        }
+    }
+
+    0.0
+}
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -49,6 +60,14 @@ impl Plugin {
             &self.msg_tx,
             cmd.reply.clone(),
             Info,
+            format!("[{NAME}] Uptime: {}", utils::uptime_str(utils::uptime())),
+        )
+        .await;
+
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
             format!("[{NAME}] Version: {VERSION}"),
         )
         .await;
@@ -57,7 +76,7 @@ impl Plugin {
             &self.msg_tx,
             cmd.reply.clone(),
             Info,
-            format!("[{NAME}] Uptime: {}", utils::uptime_str(utils::uptime())),
+            format!("[{NAME}] Temperature: {:.1}°C", get_temperature()),
         )
         .await;
     }
@@ -91,6 +110,21 @@ impl Plugin {
             plugin_mqtt::NAME.to_owned(),
             msg::ACT_PUBLISH.to_owned(),
             vec!["version".to_owned(), "false".to_owned(), VERSION.to_owned()],
+        )
+        .await;
+
+        // temperature
+        let temperature = get_temperature();
+        msg::cmd(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            plugin_mqtt::NAME.to_owned(),
+            msg::ACT_PUBLISH.to_owned(),
+            vec![
+                "temperature".to_owned(),
+                "false".to_owned(),
+                temperature.to_string(),
+            ],
         )
         .await;
 
