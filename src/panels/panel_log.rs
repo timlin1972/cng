@@ -94,8 +94,6 @@ impl panels_main::Panel for Panel {
     }
 
     async fn key(&mut self, key: KeyEvent) -> bool {
-        let mut ret = false;
-
         let is_show = self.popup.iter().any(|p| p.show);
 
         match is_show {
@@ -105,9 +103,6 @@ impl panels_main::Panel for Panel {
                 }
             }
             false => match key.code {
-                KeyCode::Char('q') => {
-                    ret = true;
-                }
                 KeyCode::Char('c') => {
                     self.output_clear();
                 }
@@ -123,7 +118,7 @@ impl panels_main::Panel for Panel {
             },
         }
 
-        ret
+        false
     }
 
     fn popup(&self) -> Option<&Popup> {

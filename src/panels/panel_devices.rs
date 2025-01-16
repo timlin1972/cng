@@ -129,8 +129,6 @@ impl panels_main::Panel for Panel {
     }
 
     async fn key(&mut self, key: KeyEvent) -> bool {
-        let mut ret = false;
-
         let is_show = self.popup.iter().any(|p| p.show);
 
         match is_show {
@@ -139,10 +137,8 @@ impl panels_main::Panel for Panel {
                     p.show = false;
                 }
             }
+            #[allow(clippy::single_match)]
             false => match key.code {
-                KeyCode::Char('q') => {
-                    ret = true;
-                }
                 KeyCode::Char('h') => {
                     for p in &mut self.popup {
                         if p.name == POPUP_HELP {
@@ -155,7 +151,7 @@ impl panels_main::Panel for Panel {
             },
         }
 
-        ret
+        true
     }
 
     fn popup(&self) -> Option<&Popup> {

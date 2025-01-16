@@ -9,6 +9,7 @@ use crate::{cfg, utils};
 
 pub const NAME: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
+const RESTART_DELAY: u64 = 30;
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -77,7 +78,19 @@ impl Plugin {
                 &msg_tx_clone,
                 cfg::get_name(),
                 Error,
-                format!("[{NAME}] Receive mqtt message stopped."),
+                format!("[{NAME}] Receive mqtt message stopped. Waiting for {RESTART_DELAY} secs to restart."),
+            )
+            .await;
+
+            tokio::time::sleep(tokio::time::Duration::from_secs(RESTART_DELAY)).await;
+
+            // disconnect
+            msg::cmd(
+                &msg_tx_clone,
+                cfg::get_name(),
+                NAME.to_owned(),
+                msg::ACT_DISCONNECT.to_owned(),
+                vec![],
             )
             .await;
         });

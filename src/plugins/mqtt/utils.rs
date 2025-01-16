@@ -70,16 +70,6 @@ pub async fn publish(
             format!("[{NAME}] -> publish: {topic}, '{payload}' failed: {e}."),
         )
         .await;
-
-        // disconnect
-        msg::cmd(
-            msg_tx,
-            cfg::get_name(),
-            plugin_mqtt::NAME.to_owned(),
-            msg::ACT_DISCONNECT.to_owned(),
-            vec![],
-        )
-        .await;
     }
 }
 
