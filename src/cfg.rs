@@ -9,14 +9,33 @@ const CFG_FILE: &str = "./cfg.json";
 const KEY: &str = "an example very very secret key."; // length is fixed
 const SHELL: &str = "sh";
 
+fn default_sh() -> String {
+    SHELL.to_string()
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Cfg {
     pub name: String,
     pub key: String,
+    #[serde(default = "default_sh")]
     pub shell: String,
 }
 
 pub fn init() {
+    fn write_cfg(cfg: &Cfg) {
+        let file_content = serde_json::to_string_pretty(cfg).unwrap();
+
+        let mut file = File::create(CFG_FILE).unwrap();
+
+        // lock
+        fs2::FileExt::lock_exclusive(&file).unwrap();
+
+        file.write_all(file_content.as_bytes()).unwrap();
+
+        // unlock
+        fs2::FileExt::unlock(&file).unwrap();
+    }
+
     let path = Path::new(CFG_FILE);
 
     if !path.exists() {
@@ -26,17 +45,12 @@ pub fn init() {
             shell: SHELL.to_owned(),
         };
 
-        let file_content = serde_json::to_string_pretty(&cfg).unwrap();
-
-        // lock
-        let mut file = File::create(CFG_FILE).unwrap();
-        fs2::FileExt::lock_exclusive(&file).unwrap();
-
-        file.write_all(file_content.as_bytes()).unwrap();
-
-        // unlock
-        fs2::FileExt::unlock(&file).unwrap();
+        write_cfg(&cfg);
     }
+
+    let cfg = get_cfg();
+
+    write_cfg(&cfg);
 }
 
 pub fn get_cfg() -> Cfg {

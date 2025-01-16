@@ -152,6 +152,8 @@ impl Plugin {
             .unwrap();
         self.stdin.as_mut().unwrap().shutdown().await.unwrap();
 
+        self.child.as_mut().unwrap().wait().await.unwrap();
+
         self.stdin = None;
         self.child = None;
 

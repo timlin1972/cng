@@ -31,7 +31,7 @@ impl Panel {
                 name: POPUP_HELP.to_owned(),
                 x: 50,
                 y: 30,
-                text: "Press 'q' to quit, 'h' to toggle help".to_owned(),
+                text: "'h' to toggle help".to_owned(),
             }],
             msg_tx,
         }
@@ -151,7 +151,7 @@ impl panels_main::Panel for Panel {
             },
         }
 
-        true
+        false
     }
 
     fn popup(&self) -> Option<&Popup> {

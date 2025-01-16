@@ -14,7 +14,6 @@ const POPUP_HELP: &str = "Help";
 const HELP_TEXT: &str = r#"
 c - Clear
 h - Help
-q - Quit
 "#;
 
 #[derive(Debug)]

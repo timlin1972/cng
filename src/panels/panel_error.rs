@@ -10,6 +10,10 @@ use crate::utils;
 
 pub const NAME: &str = "Error";
 const POPUP_HELP: &str = "Help";
+const HELP_TEXT: &str = r#"
+c - Clear
+h - Help
+"#;
 
 #[derive(Debug)]
 pub struct Panel {
@@ -31,7 +35,7 @@ impl Panel {
                 name: POPUP_HELP.to_owned(),
                 x: 50,
                 y: 30,
-                text: "Press 'q' to quit, 'h' to toggle help".to_owned(),
+                text: HELP_TEXT.to_owned(),
             }],
             msg_tx,
         }

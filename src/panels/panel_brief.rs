@@ -61,6 +61,8 @@ pub struct Panel {
     output: Vec<String>,
     popup: Vec<Popup>,
     msg_tx: Sender<Msg>,
+    history: Vec<String>,
+    history_index: usize,
 }
 
 impl Panel {
@@ -77,6 +79,8 @@ impl Panel {
                 text: HELP_TEXT.to_owned(),
             }],
             msg_tx,
+            history: vec![],
+            history_index: 0,
         }
     }
 }
@@ -144,6 +148,8 @@ impl panels_main::Panel for Panel {
             false => match key.code {
                 KeyCode::Enter => {
                     self.output.push(format!("> {}", self.input));
+                    self.history.push(self.input.clone());
+                    self.history_index = self.history.len();
 
                     ret = self.run(&self.input.clone()).await;
                     self.input.clear();
@@ -151,6 +157,22 @@ impl panels_main::Panel for Panel {
                 KeyCode::Char(c) => self.input.push(c),
                 KeyCode::Backspace => {
                     self.input.pop();
+                }
+                KeyCode::Up => {
+                    if self.history_index > 0 {
+                        self.history_index -= 1;
+                        self.input = self.history[self.history_index].clone();
+                    }
+                }
+                KeyCode::Down => {
+                    if self.history_index < self.history.len() {
+                        self.history_index += 1;
+                        if self.history_index < self.history.len() {
+                            self.input = self.history[self.history_index].clone();
+                        } else {
+                            self.input.clear();
+                        }
+                    }
                 }
                 _ => {}
             },
