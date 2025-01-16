@@ -74,7 +74,7 @@ pub struct DevInfo {
 }
 
 pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {
-    if reply == cfg::get_name() {
+    if reply == cfg::name() {
         msg_tx
             .send(Msg {
                 ts: utils::ts(),

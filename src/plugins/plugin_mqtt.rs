@@ -3,9 +3,10 @@ use log::Level::{Error, Info, Trace};
 use rumqttc::{AsyncClient, LastWill, MqttOptions, QoS};
 use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg};
 use crate::plugins::{mqtt, plugins_main};
-use crate::{cfg, utils};
+use crate::utils;
 
 pub const NAME: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
@@ -28,26 +29,20 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Trace,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
 
         log(
             &self.msg_tx,
-            cfg::get_name(),
+            cfg::name(),
             Trace,
             format!("[{NAME}] Connecting to MQTT broker"),
         )
         .await;
 
         // connect to MQTT broker
-        let mut mqttoptions = MqttOptions::new(cfg::get_name(), BROKER, 1883);
+        let mut mqttoptions = MqttOptions::new(cfg::name(), BROKER, 1883);
         let last_will = LastWill::new(
-            format!("tln/{}/onboard", cfg::get_name()),
+            format!("tln/{}/onboard", cfg::name()),
             "0",
             QoS::AtMostOnce,
             true,
@@ -65,7 +60,7 @@ impl Plugin {
         tokio::spawn(async move {
             log(
                 &msg_tx_clone,
-                cfg::get_name(),
+                cfg::name(),
                 Trace,
                 format!("[{NAME}] Start to receive mqtt message."),
             )
@@ -76,7 +71,7 @@ impl Plugin {
             }
             log(
                 &msg_tx_clone,
-                cfg::get_name(),
+                cfg::name(),
                 Error,
                 format!("[{NAME}] Receive mqtt message stopped. Waiting for {RESTART_DELAY} secs to restart."),
             )
@@ -87,7 +82,7 @@ impl Plugin {
             // disconnect
             msg::cmd(
                 &msg_tx_clone,
-                cfg::get_name(),
+                cfg::name(),
                 NAME.to_owned(),
                 msg::ACT_DISCONNECT.to_owned(),
                 vec![],
@@ -120,7 +115,7 @@ impl Plugin {
             &self.msg_tx,
             cmd.reply.clone(),
             Info,
-            format!("Id: {}", cfg::get_name()),
+            format!("Id: {}", cfg::name()),
         )
         .await;
         log(
@@ -148,7 +143,7 @@ impl Plugin {
 
         let msg = msg.trim();
 
-        let enc_msg = utils::encrypt(&cfg::get_key(), msg).unwrap();
+        let enc_msg = utils::encrypt(&cfg::key(), msg).unwrap();
 
         mqtt::utils::publish(
             &self.msg_tx,
@@ -176,7 +171,7 @@ impl Plugin {
         };
 
         let mut msg = String::new();
-        msg += &format!("r {} ", cfg::get_name());
+        msg += &format!("r {} ", cfg::name());
         for t in &cmd.data[1..] {
             msg += t;
             msg += " ";
@@ -184,7 +179,7 @@ impl Plugin {
 
         let msg = msg.trim();
 
-        let enc_msg = utils::encrypt(&cfg::get_key(), msg).unwrap();
+        let enc_msg = utils::encrypt(&cfg::key(), msg).unwrap();
 
         mqtt::utils::publish(
             &self.msg_tx,
@@ -214,7 +209,7 @@ impl plugins_main::Plugin for Plugin {
                     mqtt::utils::publish(
                         &self.msg_tx,
                         self.client.as_ref(),
-                        &format!("tln/{}/{}", cfg::get_name(), cmd.data[0]),
+                        &format!("tln/{}/{}", cfg::name(), cmd.data[0]),
                         cmd.data[1] == "true",
                         &cmd.data[2],
                     )
@@ -227,7 +222,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::get_name(),
+                        cfg::name(),
                         Error,
                         format!("[{NAME}] unknown action: {:?}.", cmd.action),
                     )
@@ -237,7 +232,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cfg::name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}."),
                 )

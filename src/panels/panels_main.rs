@@ -64,13 +64,7 @@ impl Panels {
     }
 
     pub async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        log(&self.msg_tx, cfg::name(), Info, format!("[{NAME}] init")).await;
         for panel in &mut self.panels {
             panel.init().await;
         }
@@ -234,7 +228,7 @@ impl Panels {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cfg::name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

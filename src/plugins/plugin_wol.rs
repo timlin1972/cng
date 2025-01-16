@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{log, Cmd, Data, Msg};
+use crate::cfg;
+use crate::msg::{self, log, Cmd, Data, Msg};
 use crate::plugins::plugins_main;
-use crate::{cfg, msg};
 
 const NAME: &str = "wol";
 const LIN_DS_MAC: [u8; 6] = [0x90, 0x09, 0xd0, 0x64, 0x4e, 0xa4];
@@ -24,20 +24,14 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Trace,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
     }
 
     async fn show(&mut self) {
-        log(&self.msg_tx, cfg::get_name(), Info, "linds".to_owned()).await;
+        log(&self.msg_tx, cfg::name(), Info, "linds".to_owned()).await;
         log(
             &self.msg_tx,
-            cfg::get_name(),
+            cfg::name(),
             Info,
             format!(
                 "  mac: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
@@ -127,7 +121,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cfg::name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

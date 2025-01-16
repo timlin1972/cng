@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{devices, log, Cmd, Data, DevInfo, Msg};
+use crate::cfg;
+use crate::msg::{self, devices, log, Cmd, Data, DevInfo, Msg};
 use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::utils;
-use crate::{cfg, msg};
 
 pub const NAME: &str = "devices";
 const DEVICES_POLLING: u64 = 60;
@@ -30,7 +30,7 @@ impl Plugin {
         async fn ask_device_update(msg_tx: &Sender<Msg>, device_name: &str) {
             msg::cmd(
                 msg_tx,
-                cfg::get_name(),
+                cfg::name(),
                 plugin_mqtt::NAME.to_owned(),
                 msg::ACT_ASK.to_owned(),
                 vec![
@@ -75,20 +75,14 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Trace,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
 
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
             loop {
                 msg::cmd(
                     &msg_tx_clone,
-                    cfg::get_name(),
+                    cfg::name(),
                     NAME.to_owned(),
                     msg::ACT_COUNTDOWN.to_owned(),
                     vec![],
@@ -204,7 +198,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cfg::name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

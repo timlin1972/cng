@@ -19,6 +19,7 @@ pub struct App {
     msg_tx: Sender<Msg>,
     msg_rx: Receiver<Msg>,
     key_rx: Receiver<Event>,
+    cfg_name: String,
 }
 
 impl App {
@@ -37,12 +38,15 @@ impl App {
             }
         });
 
+        let cfg_name = cfg::name();
+
         Self {
             panels: panels_main::Panels::new(msg_tx.clone()),
             plugins: plugins_main::Plugins::new(msg_tx.clone()),
             msg_tx,
             msg_rx,
             key_rx,
+            cfg_name: cfg_name.to_owned(),
         }
     }
 
@@ -52,9 +56,9 @@ impl App {
     ) -> Result<(), Box<dyn std::error::Error>> {
         log(
             &self.msg_tx,
-            cfg::get_name(),
+            self.cfg_name.to_owned(),
             Info,
-            format!("Welcome to {}!", cfg::get_name()),
+            format!("Welcome to {}!", self.cfg_name),
         )
         .await;
 

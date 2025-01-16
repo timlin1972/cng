@@ -1,7 +1,9 @@
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
+use std::sync::Mutex;
 
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 pub const DEF_NAME: &str = "cng_default";
@@ -9,72 +11,80 @@ const CFG_FILE: &str = "./cfg.json";
 const KEY: &str = "an example very very secret key."; // length is fixed
 const SHELL: &str = "sh";
 
+static INSTANCE: Lazy<Mutex<Cfg>> = Lazy::new(|| Mutex::new(Cfg::new()));
+
+fn default_name() -> String {
+    DEF_NAME.to_string()
+}
+
+fn default_key() -> String {
+    KEY.to_string()
+}
+
 fn default_sh() -> String {
     SHELL.to_string()
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Cfg {
-    pub name: String,
-    pub key: String,
+    #[serde(default = "default_name")]
+    name: String,
+    #[serde(default = "default_key")]
+    key: String,
     #[serde(default = "default_sh")]
-    pub shell: String,
+    shell: String,
 }
 
-pub fn init() {
-    fn write_cfg(cfg: &Cfg) {
-        let file_content = serde_json::to_string_pretty(cfg).unwrap();
+impl Cfg {
+    pub fn new() -> Self {
+        let path = Path::new(CFG_FILE);
 
-        let mut file = File::create(CFG_FILE).unwrap();
-
-        // lock
-        fs2::FileExt::lock_exclusive(&file).unwrap();
-
-        file.write_all(file_content.as_bytes()).unwrap();
-
-        // unlock
-        fs2::FileExt::unlock(&file).unwrap();
-    }
-
-    let path = Path::new(CFG_FILE);
-
-    if !path.exists() {
-        let cfg = Cfg {
-            name: DEF_NAME.to_owned(),
-            key: KEY.to_owned(),
-            shell: SHELL.to_owned(),
+        let cfg = if !path.exists() {
+            Cfg {
+                name: DEF_NAME.to_owned(),
+                key: KEY.to_owned(),
+                shell: SHELL.to_owned(),
+            }
+        } else {
+            let file_content = fs::read_to_string(CFG_FILE).unwrap();
+            serde_json::from_str(&file_content).unwrap()
         };
 
-        write_cfg(&cfg);
+        let file_content = serde_json::to_string_pretty(&cfg).unwrap();
+        let mut file = File::create(CFG_FILE).unwrap();
+        file.write_all(file_content.as_bytes()).unwrap();
+
+        cfg
     }
 
-    let cfg = get_cfg();
+    pub fn get_instance() -> std::sync::MutexGuard<'static, Cfg> {
+        INSTANCE.lock().unwrap()
+    }
 
-    write_cfg(&cfg);
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn key(&self) -> &str {
+        &self.key
+    }
+
+    fn shell(&self) -> &str {
+        &self.shell
+    }
 }
 
-pub fn get_cfg() -> Cfg {
-    // lock
-    let file = File::open(CFG_FILE).unwrap();
-    fs2::FileExt::lock_shared(&file).unwrap();
-
-    let file_content = fs::read_to_string(CFG_FILE).unwrap();
-    let cfg: Cfg = serde_json::from_str(&file_content).unwrap();
-
-    // unlock
-    fs2::FileExt::unlock(&file).unwrap();
-
-    cfg
+pub fn name() -> String {
+    let cfg = Cfg::get_instance();
+    cfg.name().to_owned()
 }
 
-pub fn get_name() -> String {
-    get_cfg().name
+pub fn key() -> String {
+    let cfg = Cfg::get_instance();
+    cfg.key().to_owned()
 }
 
-pub fn get_key() -> String {
-    get_cfg().key
-}
-
-pub fn get_shell() -> String {
-    get_cfg().shell
+pub fn shell() -> String {
+    let cfg = Cfg::get_instance();
+    cfg.shell().to_owned()
 }

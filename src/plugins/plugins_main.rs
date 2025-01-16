@@ -37,17 +37,11 @@ impl Plugins {
     }
 
     pub async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        log(&self.msg_tx, cfg::name(), Info, format!("[{NAME}] init")).await;
         for plugin in &mut self.plugins {
             cmd(
                 &self.msg_tx,
-                cfg::get_name(),
+                cfg::name(),
                 plugin.name().to_owned(),
                 "init".to_owned(),
                 vec![],
@@ -81,7 +75,7 @@ impl Plugins {
                     _ => {
                         log(
                             &self.msg_tx,
-                            cfg::get_name(),
+                            cmd.reply.clone(),
                             Error,
                             format!("[{NAME}] unknown action: {:?}", cmd.action),
                         )
@@ -91,7 +85,7 @@ impl Plugins {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::get_name(),
+                        cfg::name(),
                         Error,
                         format!("[{NAME}] unknown msg: {msg:?}"),
                     )
@@ -102,9 +96,15 @@ impl Plugins {
             match self.get_plugin_mut(&msg.plugin) {
                 Some(t) => ret = t.msg(msg).await,
                 None => {
+                    let reply = if let Data::Cmd(cmd) = &msg.data {
+                        cmd.reply.clone()
+                    } else {
+                        cfg::name()
+                    };
+
                     log(
                         &self.msg_tx,
-                        cfg::get_name(),
+                        reply,
                         Info,
                         format!("[{NAME}] Plugin '{}' not found", msg.plugin),
                     )

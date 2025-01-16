@@ -7,8 +7,6 @@ mod utils;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    cfg::init();
-
     let terminal = ratatui::init();
     let _app_result = app::App::new().run(terminal).await;
     ratatui::restore();

@@ -12,7 +12,7 @@ pub async fn subscribe(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>, topic
     if client.is_none() {
         log(
             msg_tx,
-            cfg::get_name(),
+            cfg::name(),
             Trace,
             format!("[{NAME}] -> subscribe: {topic} failed: client disconnected."),
         )
@@ -23,7 +23,7 @@ pub async fn subscribe(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>, topic
 
     log(
         msg_tx,
-        cfg::get_name(),
+        cfg::name(),
         Trace,
         format!("[{NAME}] -> subscribe: {topic}"),
     )
@@ -42,7 +42,7 @@ pub async fn publish(
     if client.is_none() {
         log(
             msg_tx,
-            cfg::get_name(),
+            cfg::name(),
             Trace,
             format!("[{NAME}] -> publish: {topic}, '{payload}' failed: client disconnected."),
         )
@@ -53,7 +53,7 @@ pub async fn publish(
 
     log(
         msg_tx,
-        cfg::get_name(),
+        cfg::name(),
         Trace,
         format!("[{NAME}] -> publish: {topic}, '{payload}'"),
     )
@@ -65,7 +65,7 @@ pub async fn publish(
     {
         log(
             msg_tx,
-            cfg::get_name(),
+            cfg::name(),
             Error,
             format!("[{NAME}] -> publish: {topic}, '{payload}' failed: {e}."),
         )
@@ -77,7 +77,7 @@ pub async fn disconnect(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>) {
     if client.is_none() {
         log(
             msg_tx,
-            cfg::get_name(),
+            cfg::name(),
             Trace,
             format!("[{NAME}] -> disconnect failed: client disconnected."),
         )
@@ -88,7 +88,7 @@ pub async fn disconnect(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>) {
 
     log(
         msg_tx,
-        cfg::get_name(),
+        cfg::name(),
         Trace,
         format!("[{NAME}] -> disconnect"),
     )
@@ -99,7 +99,7 @@ pub async fn disconnect(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>) {
     // init
     msg::cmd(
         msg_tx,
-        cfg::get_name(),
+        cfg::name(),
         plugin_mqtt::NAME.to_owned(),
         msg::ACT_INIT.to_owned(),
         vec![],
@@ -129,7 +129,7 @@ pub async fn process_event(msg_tx: &Sender<Msg>, event: Event) {
         _ => {
             log(
                 msg_tx,
-                cfg::get_name(),
+                cfg::name(),
                 Trace,
                 format!("[{NAME}] Not process: {event:?}."),
             )
@@ -139,17 +139,11 @@ pub async fn process_event(msg_tx: &Sender<Msg>, event: Event) {
 }
 
 async fn process_event_conn_ack(msg_tx: &Sender<Msg>) {
-    log(
-        msg_tx,
-        cfg::get_name(),
-        Trace,
-        format!("[{NAME}] <- connAck"),
-    )
-    .await;
+    log(msg_tx, cfg::name(), Trace, format!("[{NAME}] <- connAck")).await;
 
     msg::cmd(
         msg_tx,
-        cfg::get_name(),
+        cfg::name(),
         plugin_system::NAME.to_owned(),
         msg::ACT_UPDATE.to_owned(),
         vec![],
@@ -169,7 +163,7 @@ async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
     }
     log(
         msg_tx,
-        cfg::get_name(),
+        cfg::name(),
         Trace,
         format!("[{NAME}] <- ({publish:?})"),
     )
@@ -184,7 +178,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
         if let Some(name) = captures.get(1) {
             let name = name.as_str();
             let payload = std::str::from_utf8(&publish.payload).unwrap();
-            let dec_payload = utils::decrypt(&cfg::get_key(), payload).unwrap();
+            let dec_payload = utils::decrypt(&cfg::key(), payload).unwrap();
 
             let payload_vec: Vec<String> = dec_payload
                 .split_whitespace()
@@ -193,18 +187,18 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
 
             log(
                 msg_tx,
-                cfg::get_name(),
+                cfg::name(),
                 Trace,
                 format!("[{NAME}] <- publish::ask: {name}, '{dec_payload}'"),
             )
             .await;
 
-            if name == cfg::get_name() {
+            if name == cfg::name() {
                 if let Some(t) = payload_vec.first() {
                     if t != "r" {
                         log(
                             msg_tx,
-                            cfg::get_name(),
+                            cfg::name(),
                             Error,
                             format!("[{NAME}] r is missing."),
                         )
@@ -214,7 +208,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
                 } else {
                     log(
                         msg_tx,
-                        cfg::get_name(),
+                        cfg::name(),
                         Error,
                         format!("[{NAME}] r is missing."),
                     )
@@ -227,7 +221,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
                 } else {
                     log(
                         msg_tx,
-                        cfg::get_name(),
+                        cfg::name(),
                         Error,
                         format!("[{NAME}] reply is missing."),
                     )
@@ -284,19 +278,19 @@ async fn process_event_publish_reply(msg_tx: &Sender<Msg>, publish: &Publish) ->
         if let Some(name) = captures.get(1) {
             let name = name.as_str();
 
-            if name == cfg::get_name() {
+            if name == cfg::name() {
                 let payload = std::str::from_utf8(&publish.payload).unwrap();
-                let dec_payload = utils::decrypt(&cfg::get_key(), payload).unwrap();
+                let dec_payload = utils::decrypt(&cfg::key(), payload).unwrap();
 
                 log(
                     msg_tx,
-                    cfg::get_name(),
+                    cfg::name(),
                     Trace,
                     format!("[{NAME}] <- publish::reply: {name}, '{dec_payload}'"),
                 )
                 .await;
 
-                log(msg_tx, cfg::get_name(), Info, format!("R: {dec_payload}")).await;
+                log(msg_tx, cfg::name(), Info, format!("R: {dec_payload}")).await;
             }
         }
 
@@ -322,7 +316,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     Err(e) => {
                         log(
                             msg_tx,
-                            cfg::get_name(),
+                            cfg::name(),
                             Error,
                             format!("[{NAME}] Error: <- publish::onboard: {name}: {e:?}."),
                         )
@@ -334,7 +328,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 if onboard != 0 && onboard != 1 {
                     log(
                         msg_tx,
-                        cfg::get_name(),
+                        cfg::name(),
                         Error,
                         format!(
                             "[{NAME}] Error: <- publish::onboard: {name}. Wrong onboard: '{onboard}'."
@@ -352,7 +346,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     Err(e) => {
                         log(
                             msg_tx,
-                            cfg::get_name(),
+                            cfg::name(),
                             Error,
                             format!("[{NAME}] Error: <- publish::uptime: {name}: {e:?}."),
                         )
@@ -366,7 +360,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
             _ => {
                 log(
                     msg_tx,
-                    cfg::get_name(),
+                    cfg::name(),
                     Error,
                     format!("[{NAME}] Error: <- publish: {name}. Unknown key: '{key}'."),
                 )
@@ -377,7 +371,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
 
         log(
             msg_tx,
-            cfg::get_name(),
+            cfg::name(),
             Trace,
             format!("[{NAME}] <- publish::{key}: {name}, '{payload}'"),
         )

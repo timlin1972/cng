@@ -50,13 +50,7 @@ impl panels_main::Panel for Panel {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Trace,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
     }
 
     fn input(&self) -> &str {
@@ -83,7 +77,7 @@ impl panels_main::Panel for Panel {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cfg::name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

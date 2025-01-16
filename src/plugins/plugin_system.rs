@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{log, Cmd, Data, Msg};
+use crate::msg::{self, log, Cmd, Data, Msg};
 use crate::plugins::{plugin_mqtt, plugins_main};
-use crate::{cfg, msg, utils};
+use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.0.5";
+const VERSION: &str = "0.0.6";
 const ONBOARD_POLLING: u64 = 300;
 
 #[derive(Debug)]
@@ -25,13 +25,7 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            cfg::get_name(),
-            Trace,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
 
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
@@ -40,7 +34,7 @@ impl Plugin {
 
                 msg::cmd(
                     &msg_tx_clone,
-                    cfg::get_name(),
+                    cfg::name(),
                     NAME.to_owned(),
                     msg::ACT_UPDATE.to_owned(),
                     vec![],
@@ -129,7 +123,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::get_name(),
+                        cfg::name(),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -139,7 +133,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::get_name(),
+                    cfg::name(),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )
