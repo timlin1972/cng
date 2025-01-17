@@ -9,8 +9,8 @@ use crate::panels::panels_main::{self, Popup};
 use crate::utils;
 
 pub const NAME: &str = "Log";
+const MAX_OUTPUT: usize = 100;
 const POPUP_HELP: &str = "Help";
-
 const HELP_TEXT: &str = r#"
 c - Clear
 h - Help
@@ -63,6 +63,9 @@ impl panels_main::Panel for Panel {
 
     fn output_push(&mut self, output: String) {
         self.output.push(output);
+        if self.output.len() > MAX_OUTPUT {
+            self.output.remove(0);
+        }
     }
 
     fn output(&self) -> &Vec<String> {

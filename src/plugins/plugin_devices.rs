@@ -60,12 +60,16 @@ impl Plugin {
             if device.temperature.is_some() {
                 d.temperature = device.temperature;
             }
+            if device.weather.is_some() {
+                d.weather = device.weather.clone();
+            }
 
             // clear all if not onboard
             if device.onboard.is_some() && !device.onboard.unwrap() {
                 d.uptime = None;
                 d.version = None;
                 d.temperature = None;
+                d.weather = None;
             }
         } else {
             self.devices.push(device.clone());
@@ -124,6 +128,30 @@ impl Plugin {
             cmd.reply.clone(),
             Info,
             format!("    Version: {version}"),
+        )
+        .await;
+
+        // temperature
+        let temperature = if let Some(t) = device.temperature {
+            format!("{:.1}", t)
+        } else {
+            "n/a".to_owned()
+        };
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    Temperature: {temperature}°C"),
+        )
+        .await;
+
+        // weather
+        let weather = device.weather.clone().unwrap_or("n/a".to_owned());
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    Weather: {weather}"),
         )
         .await;
 

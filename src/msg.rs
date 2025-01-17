@@ -33,6 +33,7 @@ pub struct Msg {
 //  wake        wol         device              -       -       -       -
 //  ping        ping        ip                  -       -       -       -
 //  update      system      -                   -       -       -       -
+//  update_item system      item                value   -       -       -
 //  start       shell       -                   -       -       -       -
 //  cmd         shell       cmd                 -       -       -       -
 //  stop        shell       -                   -       -       -       -
@@ -46,6 +47,7 @@ pub const ACT_DISCONNECT: &str = "disconnect";
 pub const ACT_WAKE: &str = "wake";
 pub const ACT_PING: &str = "ping";
 pub const ACT_UPDATE: &str = "update";
+pub const ACT_UPDATE_ITEM: &str = "update_item";
 pub const ACT_START: &str = "start";
 pub const ACT_STOP: &str = "stop";
 pub const ACT_CMD: &str = "cmd";
@@ -71,6 +73,7 @@ pub struct DevInfo {
     pub uptime: Option<u64>,
     pub version: Option<String>,
     pub temperature: Option<f32>,
+    pub weather: Option<String>,
 }
 
 pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {

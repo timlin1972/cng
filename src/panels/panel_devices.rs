@@ -11,6 +11,7 @@ use crate::{cfg, msg};
 pub const NAME: &str = "Devices";
 const POPUP_HELP: &str = "Help";
 const DEVICES_POLLING: u64 = 60;
+const TABS: usize = 2;
 
 #[derive(Debug)]
 pub struct Panel {
@@ -20,6 +21,7 @@ pub struct Panel {
     popup: Vec<Popup>,
     msg_tx: Sender<Msg>,
     devices: Vec<DevInfo>,
+    tab_index: usize,
 }
 
 impl Panel {
@@ -37,62 +39,104 @@ impl Panel {
             }],
             msg_tx,
             devices: vec![],
+            tab_index: 0,
         }
     }
 
     pub fn devices_refresh(&mut self) {
         self.output.clear();
-        self.output.push(format!(
-            "{:<12} {:<7} {:13} {:<10} {:<7} {:<11} {:<10}",
-            "Name", "Onboard", "Uptime", "Version", "Temp", "Last update", "Countdown"
-        ));
-        for device in self.devices.iter() {
-            // onboard
-            let onboard = if let Some(t) = device.onboard {
-                if t {
-                    "On"
-                } else {
-                    "Off"
+
+        match self.tab_index {
+            0 => {
+                self.output.push(format!(
+                    "{:<12} {:<7} {:13} {:<10} {:<7} {:<11} {:<10}",
+                    "Name", "Onboard", "Uptime", "Version", "Temp", "Last update", "Countdown"
+                ));
+                for device in self.devices.iter() {
+                    // onboard
+                    let onboard = if let Some(t) = device.onboard {
+                        if t {
+                            "On"
+                        } else {
+                            "Off"
+                        }
+                    } else {
+                        "n/a"
+                    };
+
+                    // uptime
+                    let uptime = if let Some(t) = device.uptime {
+                        utils::uptime_str(t)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // version
+                    let version = if let Some(t) = &device.version {
+                        t.clone()
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // temperature
+                    let temperature = if let Some(t) = device.temperature {
+                        format!("{:.1}°C", t)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // countdown
+                    let countdown = match utils::ts().cmp(&device.ts) {
+                        std::cmp::Ordering::Less | std::cmp::Ordering::Equal => 10.to_string(),
+                        std::cmp::Ordering::Greater => {
+                            if (utils::ts() - device.ts) / 60 >= 10 {
+                                "failed".to_owned()
+                            } else {
+                                (10 - (utils::ts() - device.ts) / 60).to_string()
+                            }
+                        }
+                    };
+
+                    self.output.push(format!(
+                        "{:<12} {onboard:<7} {uptime:13} {version:<10} {temperature:<7} {:<11} {countdown:<10}",
+                        device.name,
+                        utils::ts_str(device.ts),
+                    ));
                 }
-            } else {
-                "n/a"
-            };
+            }
+            1 => {
+                self.output.push(format!(
+                    "{:<12} {:<7} {:64}",
+                    "Name", "Onboard", "Weather"
+                ));
+                for device in self.devices.iter() {
+                    // onboard
+                    let onboard = if let Some(t) = device.onboard {
+                        if t {
+                            "On"
+                        } else {
+                            "Off"
+                        }
+                    } else {
+                        "n/a"
+                    };
 
-            // uptime
-            let uptime = if let Some(t) = device.uptime {
-                utils::uptime_str(t)
-            } else {
-                "n/a".to_owned()
-            };
+                    // weather
+                    let weather = if let Some(t) = &device.weather {
+                        t.clone()
+                    } else {
+                        "n/a".to_owned()
+                    };
 
-            // version
-            let version = if let Some(t) = &device.version {
-                t.clone()
-            } else {
-                "n/a".to_owned()
-            };
-
-            // temperature
-            let temperature = if let Some(t) = device.temperature {
-                format!("{:.1}°C", t)
-            } else {
-                "n/a".to_owned()
-            };
-
-            // countdown
-            let passing = utils::ts() - device.ts;
-            let passing_mins = if passing != 0 { passing / 60 } else { 0 };
-            let countdown = if passing_mins > 10 {
-                "failed".to_owned()
-            } else {
-                format!("{}", 10 - passing_mins)
-            };
-
-            self.output.push(format!(
-                "{:<12} {onboard:<7} {uptime:13} {version:<10} {temperature:<7} {:<11} {countdown:<10}",
-                device.name,
-                utils::ts_str(device.ts),
-            ));
+                    self.output.push(format!(
+                        "{:<12} {onboard:<7} {weather:64}",
+                        device.name,
+                        onboard = onboard,
+                        weather = weather,
+                    ));
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -170,6 +214,10 @@ impl panels_main::Panel for Panel {
                             break;
                         }
                     }
+                }
+                KeyCode::Char('t') => {
+                    self.tab_index = (self.tab_index + 1) % TABS;
+                    self.devices_refresh();
                 }
                 _ => {}
             },

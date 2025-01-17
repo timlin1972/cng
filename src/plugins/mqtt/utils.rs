@@ -303,13 +303,15 @@ async fn process_event_publish_reply(msg_tx: &Sender<Msg>, publish: &Publish) ->
 async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
     let topic = &publish.topic;
 
-    let re = regex::Regex::new(r"^tln/([^/]+)/(onboard|uptime|version|temperature)$").unwrap();
+    let re =
+        regex::Regex::new(r"^tln/([^/]+)/(onboard|uptime|version|temperature|weather)$")
+            .unwrap();
     if let Some(captures) = re.captures(topic) {
         let name = &captures[1];
         let key = &captures[2];
         let payload = std::str::from_utf8(&publish.payload).unwrap();
 
-        let (onboard, uptime, version, temperature) = match key {
+        let (onboard, uptime, version, temperature, weather) = match key {
             "onboard" => {
                 let onboard = match payload.parse::<u64>() {
                     Ok(t) => t,
@@ -338,7 +340,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     return true;
                 }
 
-                (Some(onboard == 1), None, None, None)
+                (Some(onboard == 1), None, None, None, None)
             }
             "uptime" => {
                 let uptime = match payload.parse::<u64>() {
@@ -348,15 +350,15 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                             msg_tx,
                             cfg::name(),
                             Error,
-                            format!("[{NAME}] Error: <- publish::uptime: {name}: {e:?}."),
+                            format!("[{NAME}] Error: <- publish::uptime: {name}. Wrong uptime: {payload}: {e:?}."),
                         )
                         .await;
                         return true;
                     }
                 };
-                (None, Some(uptime), None, None)
+                (None, Some(uptime), None, None, None)
             }
-            "version" => (None, None, Some(payload.to_owned()), None),
+            "version" => (None, None, Some(payload.to_owned()), None, None),
             "temperature" => {
                 let temperature = match payload.parse::<f32>() {
                     Ok(t) => t,
@@ -365,14 +367,15 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                             msg_tx,
                             cfg::name(),
                             Error,
-                            format!("[{NAME}] Error: <- publish::temperature: {name}: {e:?}."),
+                            format!("[{NAME}] Error: <- publish::temperature: {name}: Wrong temperature: {payload}: {e:?}."),
                         )
                         .await;
                         return true;
                     }
                 };
-                (None, None, None, Some(temperature))
+                (None, None, None, Some(temperature), None)
             }
+            "weather" => (None, None, None, None, Some(payload.to_owned())),
             _ => {
                 log(
                     msg_tx,
@@ -402,6 +405,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 uptime,
                 version,
                 temperature,
+                weather,
             },
         )
         .await;

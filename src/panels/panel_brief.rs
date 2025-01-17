@@ -142,8 +142,11 @@ impl panels_main::Panel for Panel {
             false => match key.code {
                 KeyCode::Enter => {
                     self.output.push(format!("> {}", self.input));
-                    self.history.push(self.input.clone());
-                    self.history_index = self.history.len();
+                    // ignore if the input is as the same as the last one
+                    if self.history.is_empty() || self.history.last().unwrap() != &self.input {
+                        self.history.push(self.input.clone());
+                        self.history_index = self.history.len();
+                    }
 
                     ret = self.run(&self.input.clone()).await;
                     self.input.clear();

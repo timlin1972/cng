@@ -95,3 +95,35 @@ pub fn decrypt(key: &str, enc_str: &str) -> Result<String, String> {
         .map_err(|e| format!("Err: Failed to decrypt: {enc_str}, err: {e}"))?;
     String::from_utf8(decrypted_plaintext).map_err(|_| "Decryption failed".to_owned())
 }
+
+pub async fn weather() -> String {
+    // use isahc::prelude::*;
+
+    // let client = isahc::HttpClient::builder()
+    //     .timeout(std::time::Duration::from_secs(3))
+    //     .build()
+    //     .unwrap();
+
+    // let mut response = match client.get_async("https://wttr.in/?format=3").await {
+    //     Ok(r) => r,
+    //     Err(_) => {
+    //         return "n/a".to_owned();
+    //     }
+    // };
+
+    // response.text().await.unwrap().trim().to_owned()
+
+    "n/a".to_owned()
+
+    // reqwest::Client::new()
+    //     .get("https://wttr.in/?format=3")
+    //     .timeout(tokio::time::Duration::from_secs(5))
+    //     .send()
+    //     .await
+    //     .expect("n/a")
+    //     .text()
+    //     .await
+    //     .expect("n/a")
+    //     .trim()
+    //     .to_owned()
+}

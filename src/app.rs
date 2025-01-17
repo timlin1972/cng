@@ -24,7 +24,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let (msg_tx, msg_rx) = mpsc::channel(32);
+        let (msg_tx, msg_rx) = mpsc::channel(512);
 
         // read key
         let (key_tx, key_rx) = mpsc::channel(32);
