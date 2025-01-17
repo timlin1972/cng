@@ -225,6 +225,9 @@ impl Panels {
             Data::Devices(_devices) => {
                 self.get_panel_mut(panel_devices::NAME).msg(msg).await;
             }
+            Data::DeviceCountdown => {
+                self.get_panel_mut(panel_devices::NAME).msg(msg).await;
+            }
             _ => {
                 log(
                     &self.msg_tx,

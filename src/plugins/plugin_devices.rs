@@ -8,7 +8,6 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::utils;
 
 pub const NAME: &str = "devices";
-const DEVICES_POLLING: u64 = 60;
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -80,21 +79,6 @@ impl Plugin {
 
     async fn init(&mut self) {
         log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
-
-        let msg_tx_clone = self.msg_tx.clone();
-        tokio::spawn(async move {
-            loop {
-                msg::cmd(
-                    &msg_tx_clone,
-                    cfg::name(),
-                    NAME.to_owned(),
-                    msg::ACT_COUNTDOWN.to_owned(),
-                    vec![],
-                )
-                .await;
-                tokio::time::sleep(tokio::time::Duration::from_secs(DEVICES_POLLING)).await;
-            }
-        });
     }
 
     async fn show_device(&self, cmd: &Cmd, device: &DevInfo) {
@@ -183,9 +167,6 @@ impl plugins_main::Plugin for Plugin {
             Data::Cmd(cmd) => match cmd.action.as_str() {
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_SHOW => self.show(cmd).await,
-                msg::ACT_COUNTDOWN => {
-                    devices(&self.msg_tx, self.devices.clone()).await;
-                }
                 _ => {
                     log(
                         &self.msg_tx,

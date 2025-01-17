@@ -3,13 +3,14 @@ use log::Level::{Error, Trace};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
-use crate::cfg;
-use crate::msg::{log, Data, Msg};
+use crate::msg::{log, Data, DevInfo, Msg};
 use crate::panels::panels_main::{self, Popup};
 use crate::utils;
+use crate::{cfg, msg};
 
 pub const NAME: &str = "Devices";
 const POPUP_HELP: &str = "Help";
+const DEVICES_POLLING: u64 = 60;
 
 #[derive(Debug)]
 pub struct Panel {
@@ -18,6 +19,7 @@ pub struct Panel {
     output: Vec<String>,
     popup: Vec<Popup>,
     msg_tx: Sender<Msg>,
+    devices: Vec<DevInfo>,
 }
 
 impl Panel {
@@ -34,6 +36,63 @@ impl Panel {
                 text: "'h' to toggle help".to_owned(),
             }],
             msg_tx,
+            devices: vec![],
+        }
+    }
+
+    pub fn devices_refresh(&mut self) {
+        self.output.clear();
+        self.output.push(format!(
+            "{:<12} {:<7} {:13} {:<10} {:<7} {:<11} {:<10}",
+            "Name", "Onboard", "Uptime", "Version", "Temp", "Last update", "Countdown"
+        ));
+        for device in self.devices.iter() {
+            // onboard
+            let onboard = if let Some(t) = device.onboard {
+                if t {
+                    "On"
+                } else {
+                    "Off"
+                }
+            } else {
+                "n/a"
+            };
+
+            // uptime
+            let uptime = if let Some(t) = device.uptime {
+                utils::uptime_str(t)
+            } else {
+                "n/a".to_owned()
+            };
+
+            // version
+            let version = if let Some(t) = &device.version {
+                t.clone()
+            } else {
+                "n/a".to_owned()
+            };
+
+            // temperature
+            let temperature = if let Some(t) = device.temperature {
+                format!("{:.1}°C", t)
+            } else {
+                "n/a".to_owned()
+            };
+
+            // countdown
+            let passing = utils::ts() - device.ts;
+            let passing_mins = if passing != 0 { passing / 60 } else { 0 };
+            let countdown = if passing_mins > 10 {
+                "failed".to_owned()
+            } else {
+                format!("{}", 10 - passing_mins)
+            };
+
+            self.output.push(format!(
+                "{:<12} {onboard:<7} {uptime:13} {version:<10} {temperature:<7} {:<11} {countdown:<10}",
+                device.name,
+                utils::ts_str(device.ts),
+            ));
         }
     }
 }
@@ -46,6 +105,14 @@ impl panels_main::Panel for Panel {
 
     async fn init(&mut self) {
         log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+
+        let msg_tx_clone = self.msg_tx.clone();
+        tokio::spawn(async move {
+            loop {
+                msg::device_countdown(&msg_tx_clone).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(DEVICES_POLLING)).await;
+            }
+        });
     }
 
     fn input(&self) -> &str {
@@ -67,58 +134,11 @@ impl panels_main::Panel for Panel {
     async fn msg(&mut self, msg: &Msg) {
         match &msg.data {
             Data::Devices(devices) => {
-                self.output_clear();
-                self.output_push(format!(
-                    "{:<12} {:<7} {:13} {:<10} {:<7} {:<11} {:<10}",
-                    "Name", "Onboard", "Uptime", "Version", "Temp", "Last update", "Countdown"
-                ));
-                for device in devices.iter() {
-                    // onboard
-                    let onboard = if let Some(t) = device.onboard {
-                        if t {
-                            "On"
-                        } else {
-                            "Off"
-                        }
-                    } else {
-                        "n/a"
-                    };
-
-                    // uptime
-                    let uptime = if let Some(t) = device.uptime {
-                        utils::uptime_str(t)
-                    } else {
-                        "n/a".to_owned()
-                    };
-
-                    // version
-                    let version = if let Some(t) = &device.version {
-                        t.clone()
-                    } else {
-                        "n/a".to_owned()
-                    };
-
-                    // temperature
-                    let temperature = if let Some(t) = device.temperature {
-                        format!("{:.1}°C", t)
-                    } else {
-                        "n/a".to_owned()
-                    };
-
-                    // countdown
-                    let remaining: i64 = 10 - ((utils::ts() + 1 - device.ts) / 60) as i64; // +1 to avoid overflow
-                    let countdown = if remaining > 0 {
-                        remaining.to_string()
-                    } else {
-                        "failed".to_owned()
-                    };
-
-                    self.output_push(format!(
-                        "{:<12} {onboard:<7} {uptime:13} {version:<10} {temperature:<7} {:<11} {countdown:<10}",
-                        device.name,
-                        utils::ts_str(device.ts),
-                    ));
-                }
+                self.devices = devices.clone();
+                self.devices_refresh();
+            }
+            Data::DeviceCountdown => {
+                self.devices_refresh();
             }
             _ => {
                 log(

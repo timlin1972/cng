@@ -10,6 +10,7 @@ pub enum Data {
     Log(Log),
     Devices(Vec<DevInfo>),
     DeviceUpdate(DevInfo),
+    DeviceCountdown,
     Cmd(Cmd),
 }
 
@@ -31,7 +32,6 @@ pub struct Msg {
 //  disconnect  mqtt        -                   -       -       -       -
 //  wake        wol         device              -       -       -       -
 //  ping        ping        ip                  -       -       -       -
-//  countdown   devices     -                   -       -       -       -
 //  update      system      -                   -       -       -       -
 //  start       shell       -                   -       -       -       -
 //  cmd         shell       cmd                 -       -       -       -
@@ -45,7 +45,6 @@ pub const ACT_PUBLISH: &str = "publish";
 pub const ACT_DISCONNECT: &str = "disconnect";
 pub const ACT_WAKE: &str = "wake";
 pub const ACT_PING: &str = "ping";
-pub const ACT_COUNTDOWN: &str = "countdown";
 pub const ACT_UPDATE: &str = "update";
 pub const ACT_START: &str = "start";
 pub const ACT_STOP: &str = "stop";
@@ -106,6 +105,17 @@ pub async fn devices(msg_tx: &Sender<Msg>, devices: Vec<DevInfo>) {
             ts: utils::ts(),
             plugin: panels_main::NAME.to_owned(),
             data: Data::Devices(devices),
+        })
+        .await
+        .unwrap();
+}
+
+pub async fn device_countdown(msg_tx: &Sender<Msg>) {
+    msg_tx
+        .send(Msg {
+            ts: utils::ts(),
+            plugin: panels_main::NAME.to_owned(),
+            data: Data::DeviceCountdown,
         })
         .await
         .unwrap();
