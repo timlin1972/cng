@@ -99,6 +99,9 @@ impl plugins_main::Plugin for Plugin {
                     println!("[{}] {}", log.level, log.msg);
                 }
                 cfg::MODE_GUI => {
+                    if self.trace == 0 && log.level == Trace {
+                        return false;
+                    }
                     self.msg_tx
                         .send(Msg {
                             ts: msg.ts,

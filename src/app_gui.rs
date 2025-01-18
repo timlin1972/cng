@@ -11,6 +11,7 @@ use crate::{
     msg::{log, Msg},
     panels::panels_main,
     plugins::plugins_main,
+    KEY_SIZE, MSG_SIZE,
 };
 
 pub struct App {
@@ -24,10 +25,10 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let (msg_tx, msg_rx) = mpsc::channel(512);
+        let (msg_tx, msg_rx) = mpsc::channel(MSG_SIZE);
 
         // read key
-        let (key_tx, key_rx) = mpsc::channel(32);
+        let (key_tx, key_rx) = mpsc::channel(KEY_SIZE);
         tokio::spawn(async move {
             loop {
                 if let Ok(event) = task::spawn_blocking(event::read).await.unwrap() {

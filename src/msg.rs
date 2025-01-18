@@ -11,6 +11,7 @@ pub enum Data {
     Devices(Vec<DevInfo>),
     DeviceUpdate(DevInfo),
     DeviceCountdown,
+    Weather(Vec<City>),
     Cmd(Cmd),
 }
 
@@ -21,23 +22,25 @@ pub struct Msg {
     pub data: Data,
 }
 
-//              plugin      data[0]             data[1] data[2] data[3] data[4]
-//  show        devices     device (optional)   -       -       -       -
-//  show        others      -                   -       -       -       -
-//  init        all         -                   -       -       -       -
-//  ask         mqtt        target_device       p       plugin  action  -
-//  reply       all         level               msg     -       -       -
-//  quit        all         -                   -       -       -       -
-//  publish     mqtt        topic               retain  payload -       -
-//  disconnect  mqtt        -                   -       -       -       -
-//  wake        wol         device              -       -       -       -
-//  ping        ping        ip                  -       -       -       -
-//  update      system      -                   -       -       -       -
-//  update_item system      item                value   -       -       -
-//  start       shell       -                   -       -       -       -
-//  cmd         shell       cmd                 -       -       -       -
-//  stop        shell       -                   -       -       -       -
-//  trace       log         0/1                 -       -       -       -
+//              plugin      data[0]         data[1]         data[2]         data[3] data[4]
+//  show        devices     device (opt)    -               -               -       -
+//  show        others      -               -               -               -       -
+//  init        all         -               -               -               -       -
+//  ask         mqtt        target_device   p               plugin          action  -
+//  reply       all         level           msg             -               -       -
+//  quit        all         -               -               -               -       -
+//  publish     mqtt        topic           retain          payload         -       -
+//  disconnect  mqtt        -               -               -               -       -
+//  wake        wol         device          -               -               -       -
+//  ping        ping        ip              -               -               -       -
+//  update      system      -               -               -               -       -
+//  update_item system      item            value           -               -       -
+//  start       shell       -               -               -               -       -
+//  cmd         shell       cmd             -               -               -       -
+//  stop        shell       -               -               -               -       -
+//  trace       log         0/1             -               -               -       -
+//  weather     weather     name            time            temperature     code    -
+//  update      weather     -               -               -               -       -
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
 pub const ACT_ASK: &str = "ask";
@@ -53,6 +56,7 @@ pub const ACT_START: &str = "start";
 pub const ACT_STOP: &str = "stop";
 pub const ACT_CMD: &str = "cmd";
 pub const ACT_TRACE: &str = "trace";
+pub const ACT_WEATHER: &str = "weather";
 
 #[derive(Debug, Clone)]
 pub struct Cmd {
@@ -76,6 +80,16 @@ pub struct DevInfo {
     pub version: Option<String>,
     pub temperature: Option<f32>,
     pub weather: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct City {
+    pub name: String,
+    pub latitude: f32,
+    pub longitude: f32,
+    pub ts: Option<i64>,
+    pub temperature: Option<f32>,
+    pub code: Option<u8>,
 }
 
 pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {
@@ -132,6 +146,17 @@ pub async fn device_update(msg_tx: &Sender<Msg>, device: DevInfo) {
             ts: utils::ts(),
             plugin: plugin_devices::NAME.to_owned(),
             data: Data::DeviceUpdate(device),
+        })
+        .await
+        .unwrap();
+}
+
+pub async fn weather(msg_tx: &Sender<Msg>, weather: Vec<City>) {
+    msg_tx
+        .send(Msg {
+            ts: utils::ts(),
+            plugin: panels_main::NAME.to_owned(),
+            data: Data::Weather(weather),
         })
         .await
         .unwrap();

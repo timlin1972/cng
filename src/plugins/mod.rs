@@ -5,5 +5,6 @@ pub mod plugin_mqtt;
 pub mod plugin_ping;
 pub mod plugin_shell;
 pub mod plugin_system;
+pub mod plugin_weather;
 pub mod plugin_wol;
 pub mod plugins_main;

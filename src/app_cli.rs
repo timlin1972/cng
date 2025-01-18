@@ -9,13 +9,13 @@ use crate::{
     msg::{self, log, Msg},
     panels::panels_main,
     plugins::plugins_main,
-    utils,
+    utils, KEY_SIZE, MSG_SIZE,
 };
 
 fn prompt() -> Result<(), String> {
     let ts_str = utils::ts_str(utils::ts());
 
-    print!("{ts_str} > ",);
+    print!("{ts_str} > ");
     std::io::stdout().flush().map_err(|e| e.to_string())?;
 
     Ok(())
@@ -31,10 +31,10 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let (msg_tx, msg_rx) = mpsc::channel(512);
+        let (msg_tx, msg_rx) = mpsc::channel(MSG_SIZE);
 
         // read key
-        let (key_tx, key_rx) = mpsc::channel(32);
+        let (key_tx, key_rx) = mpsc::channel(KEY_SIZE);
         tokio::spawn(async move {
             let stdin = io::stdin(); // 標準輸入
             let reader = BufReader::new(stdin); // 使用緩衝讀取

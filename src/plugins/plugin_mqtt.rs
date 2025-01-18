@@ -10,7 +10,7 @@ use crate::utils;
 
 pub const NAME: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
-const RESTART_DELAY: u64 = 30;
+const MQTT_KEEP_ALIVE: u64 = 180;
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -48,7 +48,7 @@ impl Plugin {
             true,
         );
         mqttoptions
-            .set_keep_alive(std::time::Duration::from_secs(5))
+            .set_keep_alive(std::time::Duration::from_secs(MQTT_KEEP_ALIVE))
             .set_last_will(last_will);
 
         let (client, mut connection) = AsyncClient::new(mqttoptions, 10);
@@ -73,11 +73,9 @@ impl Plugin {
                 &msg_tx_clone,
                 cfg::name(),
                 Error,
-                format!("[{NAME}] Receive mqtt message stopped. Waiting for {RESTART_DELAY} secs to restart."),
+                format!("[{NAME}] Receive mqtt message stopped."),
             )
             .await;
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(RESTART_DELAY)).await;
 
             // disconnect
             msg::cmd(

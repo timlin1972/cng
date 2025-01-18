@@ -5,6 +5,7 @@ use aes_gcm::{Aes256Gcm, Nonce}; // Or `Aes128Gcm`
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, Local};
 use rand::RngCore;
+use serde::Deserialize;
 use sysinfo::System;
 
 pub fn ts() -> u64 {
@@ -96,7 +97,7 @@ pub fn decrypt(key: &str, enc_str: &str) -> Result<String, String> {
     String::from_utf8(decrypted_plaintext).map_err(|_| "Decryption failed".to_owned())
 }
 
-pub async fn weather() -> String {
+pub async fn device_weather() -> String {
     reqwest::Client::new()
         .get("https://wttr.in/?format=3")
         .timeout(tokio::time::Duration::from_secs(5))
@@ -108,4 +109,75 @@ pub async fn weather() -> String {
         .expect("n/a")
         .trim()
         .to_owned()
+}
+
+#[derive(Deserialize)]
+pub struct Weather {
+    pub time: String,
+    pub temperature: f32,
+    pub code: u8,
+}
+
+pub async fn weather(latitude: f32, longitude: f32) -> Weather {
+    let response = reqwest::Client::new()
+        .get(format!("https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true"))
+        .timeout(tokio::time::Duration::from_secs(5))
+        .send()
+        .await
+        .expect("n/a")
+        .text()
+        .await
+        .expect("n/a");
+
+    let weather: serde_json::Value = serde_json::from_str(&response).unwrap();
+
+    let weather = Weather {
+        time: weather["current_weather"]["time"]
+            .as_str()
+            .unwrap()
+            .to_owned(),
+        temperature: weather["current_weather"]["temperature"].as_f64().unwrap() as f32,
+        code: weather["current_weather"]["weathercode"].as_u64().unwrap() as u8,
+    };
+
+    weather
+}
+
+const WEATHER_CODES: [(u8, &str); 28] = [
+    (0, "晴天"),
+    (1, "多雲時晴"),
+    (2, "局部多雲"),
+    (3, "陰天"),
+    (45, "有霧"),
+    (48, "凍霧"),
+    (51, "毛毛雨（小雨強度）"),
+    (53, "毛毛雨（中雨強度）"),
+    (55, "毛毛雨（大雨強度）"),
+    (56, "凍雨（小雨強度）"),
+    (57, "凍雨（大雨強度）"),
+    (61, "小雨"),
+    (63, "中雨"),
+    (65, "大雨"),
+    (66, "凍雨（小雨）"),
+    (67, "凍雨（大雨）"),
+    (71, "小雪"),
+    (73, "中雪"),
+    (75, "大雪"),
+    (77, "雪粒"),
+    (80, "小陣雨"),
+    (81, "中陣雨"),
+    (82, "強陣雨"),
+    (85, "小陣雪"),
+    (86, "大陣雪"),
+    (95, "雷雨"),
+    (96, "雷雨夾小冰雹"),
+    (99, "雷雨夾大冰雹"),
+];
+
+pub fn weather_code_str(code: u8) -> &'static str {
+    WEATHER_CODES
+        .iter()
+        .find(|&&(c, _)| c == code)
+        .map(|&(_, desc)| desc)
+        .unwrap_or("未知天氣")
 }

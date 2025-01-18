@@ -3,15 +3,19 @@ use log::Level::{Error, Trace};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{log, Data, DevInfo, Msg};
+use crate::msg::{log, City, Data, DevInfo, Msg};
 use crate::panels::panels_main::{self, Popup};
 use crate::utils;
 use crate::{cfg, msg};
 
 pub const NAME: &str = "Infos";
 const POPUP_HELP: &str = "Help";
+const HELP_TEXT: &str = r#"
+h      - Help
+⭠ / ⭢  - Change tab
+"#;
 const DEVICES_POLLING: u64 = 60;
-const TABS: usize = 2;
+const TABS: usize = 3;
 
 #[derive(Debug)]
 pub struct Panel {
@@ -22,6 +26,7 @@ pub struct Panel {
     msg_tx: Sender<Msg>,
     devices: Vec<DevInfo>,
     tab_index: usize,
+    weather: Vec<City>,
 }
 
 impl Panel {
@@ -35,15 +40,16 @@ impl Panel {
                 name: POPUP_HELP.to_owned(),
                 x: 50,
                 y: 30,
-                text: "'h' to toggle help".to_owned(),
+                text: HELP_TEXT.to_owned(),
             }],
             msg_tx,
             devices: vec![],
             tab_index: 0,
+            weather: vec![],
         }
     }
 
-    pub fn devices_refresh(&mut self) {
+    pub fn tab_refresh(&mut self) {
         self.output.clear();
 
         match self.tab_index {
@@ -134,6 +140,39 @@ impl Panel {
                     ));
                 }
             }
+            2 => {
+                self.output.push(format!(
+                    "{:<12} {:<11} {:7} {:20}",
+                    "City", "Datetime", "Temp", "Weather"
+                ));
+                for city in &self.weather {
+                    // datetime
+                    let datetime = if let Some(t) = city.ts {
+                        utils::ts_str(t as u64)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // temperature
+                    let temperature = if let Some(t) = city.temperature {
+                        format!("{t}°C")
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // weather
+                    let weather = if let Some(t) = city.code {
+                        utils::weather_code_str(t)
+                    } else {
+                        "n/a"
+                    };
+
+                    self.output.push(format!(
+                        "{:<12} {datetime:<11} {temperature:7} {weather:20}",
+                        city.name
+                    ));
+                }
+            }
             _ => {}
         }
     }
@@ -143,6 +182,10 @@ impl Panel {
 impl panels_main::Panel for Panel {
     fn name(&self) -> &str {
         self.name.as_str()
+    }
+
+    fn title(&self) -> String {
+        format!("{} - {}/{TABS}", self.name, self.tab_index + 1)
     }
 
     async fn init(&mut self) {
@@ -177,10 +220,14 @@ impl panels_main::Panel for Panel {
         match &msg.data {
             Data::Devices(devices) => {
                 self.devices = devices.clone();
-                self.devices_refresh();
+                self.tab_refresh();
             }
             Data::DeviceCountdown => {
-                self.devices_refresh();
+                self.tab_refresh();
+            }
+            Data::Weather(weather) => {
+                self.weather = weather.clone();
+                self.tab_refresh();
             }
             _ => {
                 log(
@@ -213,9 +260,13 @@ impl panels_main::Panel for Panel {
                         }
                     }
                 }
-                KeyCode::Char('t') => {
+                KeyCode::Right => {
                     self.tab_index = (self.tab_index + 1) % TABS;
-                    self.devices_refresh();
+                    self.tab_refresh();
+                }
+                KeyCode::Left => {
+                    self.tab_index = (self.tab_index + TABS - 1) % TABS;
+                    self.tab_refresh();
                 }
                 _ => {}
             },

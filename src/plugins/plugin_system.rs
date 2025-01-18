@@ -7,7 +7,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.1.0";
+const VERSION: &str = "0.1.1";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -40,14 +40,10 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
-
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(ONBOARD_POLLING)).await;
-
-                let weather = utils::weather().await;
+                let weather = utils::device_weather().await;
                 msg::cmd(
                     &msg_tx_clone,
                     cfg::name(),
@@ -76,8 +72,12 @@ impl Plugin {
                     vec![],
                 )
                 .await;
+
+                tokio::time::sleep(tokio::time::Duration::from_secs(ONBOARD_POLLING)).await;
             }
         });
+
+        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
     }
 
     async fn show(&mut self, cmd: &Cmd) {

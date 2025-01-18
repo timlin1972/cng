@@ -7,6 +7,7 @@ use crate::plugins::{plugin_mqtt, plugin_system};
 use crate::{cfg, utils};
 
 const NAME: &str = "mqtt::utils";
+const RESTART_DELAY: u64 = 30;
 
 pub async fn subscribe(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>, topic: &str) {
     if client.is_none() {
@@ -95,6 +96,16 @@ pub async fn disconnect(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>) {
     .await;
 
     let _ = client.disconnect().await;
+
+    log(
+        msg_tx,
+        cfg::name(),
+        Error,
+        format!("[{NAME}] Waiting for {RESTART_DELAY} secs to restart."),
+    )
+    .await;
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(RESTART_DELAY)).await;
 
     // init
     msg::cmd(

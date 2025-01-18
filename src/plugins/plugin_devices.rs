@@ -173,13 +173,6 @@ impl Plugin {
                 }
             } else {
                 self.show_device(cmd, device).await;
-                // log(
-                //     &self.msg_tx,
-                //     cmd.reply.clone(),
-                //     Info,
-                //     format!("{}: {}", device.name, if device.onboard.unwrap() { "On" } else { "off" }),
-                // )
-                // .await;
             }
         }
     }

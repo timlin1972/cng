@@ -1,11 +1,14 @@
-mod app;
 mod app_cli;
+mod app_gui;
 mod cfg;
 mod command;
 mod msg;
 mod panels;
 mod plugins;
 mod utils;
+
+pub const MSG_SIZE: usize = 1024;
+pub const KEY_SIZE: usize = 32;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match mode.as_str() {
         cfg::MODE_GUI => {
             let terminal = ratatui::init();
-            let _app_result = app::App::new().run(terminal).await;
+            let _app_result = app_gui::App::new().run(terminal).await;
             ratatui::restore();
         }
         cfg::MODE_CLI => {

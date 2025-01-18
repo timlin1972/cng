@@ -12,7 +12,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
 use crate::msg::{log, Data, Msg};
-use crate::panels::{panel_brief, panel_infos, panel_error, panel_log};
+use crate::panels::{panel_brief, panel_error, panel_infos, panel_log};
 
 pub const NAME: &str = "panels";
 
@@ -28,6 +28,9 @@ pub struct Popup {
 #[async_trait]
 pub trait Panel {
     fn name(&self) -> &str;
+    fn title(&self) -> String {
+        self.name().to_owned()
+    }
     async fn init(&mut self);
     fn input(&self) -> &str;
     fn output(&self) -> &Vec<String>;
@@ -50,9 +53,9 @@ pub struct Panels {
 impl Panels {
     pub fn new(msg_tx: Sender<Msg>) -> Self {
         let panels = vec![
-            Box::new(panel_log::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
-            Box::new(panel_brief::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
             Box::new(panel_infos::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
+            Box::new(panel_brief::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
+            Box::new(panel_log::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
             Box::new(panel_error::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
         ];
 
@@ -92,23 +95,23 @@ impl Panels {
         // area_left, area_right
         let [area_left, area_right] = [layout[0], layout[1]];
 
-        // area_log, area_brief
+        // area_info, area_brief
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
             .split(area_left);
-        let [area_log, area_brief] = [layout[0], layout[1]];
+        let [area_info, area_brief] = [layout[0], layout[1]];
 
-        // area_info, area_error
+        // area_log, area_error
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area_right);
-        let [area_info, area_error] = [layout[0], layout[1]];
+        let [area_log, area_error] = [layout[0], layout[1]];
 
         for (index, window) in self.panels.iter().enumerate() {
             let block = Block::default()
-                .title(window.name())
+                .title(window.title())
                 .borders(Borders::ALL)
                 .border_type(if index == self.active_panel {
                     BorderType::Double
@@ -226,6 +229,9 @@ impl Panels {
                 self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
             Data::DeviceCountdown => {
+                self.get_panel_mut(panel_infos::NAME).msg(msg).await;
+            }
+            Data::Weather(_weather) => {
                 self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
             _ => {
