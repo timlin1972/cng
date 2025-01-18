@@ -98,17 +98,26 @@ pub fn decrypt(key: &str, enc_str: &str) -> Result<String, String> {
 }
 
 pub async fn device_weather() -> String {
-    reqwest::Client::new()
+    let response = match reqwest::Client::new()
         .get("https://wttr.in/?format=3")
         .timeout(tokio::time::Duration::from_secs(5))
         .send()
         .await
-        .expect("n/a")
-        .text()
-        .await
-        .expect("n/a")
-        .trim()
-        .to_owned()
+    {
+        Ok(response) => response,
+        Err(_) => {
+            return "n/a".to_owned();
+        }
+    };
+
+    let response = match response.text().await {
+        Ok(response) => response,
+        Err(_) => {
+            return "n/a".to_owned();
+        }
+    };
+
+    response.trim().to_owned()
 }
 
 #[derive(Deserialize)]
@@ -118,16 +127,25 @@ pub struct Weather {
     pub code: u8,
 }
 
-pub async fn weather(latitude: f32, longitude: f32) -> Weather {
-    let response = reqwest::Client::new()
+pub async fn weather(latitude: f32, longitude: f32) -> Result<Weather, String> {
+    let response = match reqwest::Client::new()
         .get(format!("https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true"))
         .timeout(tokio::time::Duration::from_secs(5))
         .send()
         .await
-        .expect("n/a")
-        .text()
-        .await
-        .expect("n/a");
+    {
+        Ok(response) => response,
+        Err(e) => {
+            return Err(format!("Failed to get weather: {e}"));
+        }
+    };
+
+    let response = match response.text().await {
+        Ok(response) => response,
+        Err(e) => {
+            return Err(format!("Failed to get weather: {e}"));
+        }
+    };
 
     let weather: serde_json::Value = serde_json::from_str(&response).unwrap();
 
@@ -140,7 +158,7 @@ pub async fn weather(latitude: f32, longitude: f32) -> Weather {
         code: weather["current_weather"]["weathercode"].as_u64().unwrap() as u8,
     };
 
-    weather
+    Ok(weather)
 }
 
 const WEATHER_CODES: [(u8, &str); 28] = [

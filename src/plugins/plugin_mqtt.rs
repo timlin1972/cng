@@ -171,7 +171,12 @@ impl Plugin {
         let mut msg = String::new();
         msg += &format!("r {} ", cfg::name());
         for t in &cmd.data[1..] {
-            msg += t;
+            // if t content space
+            if t.contains(" ") {
+                msg += &format!("\"{t}\"");
+            } else {
+                msg += t;
+            }
             msg += " ";
         }
 
@@ -183,6 +188,27 @@ impl Plugin {
             &self.msg_tx,
             self.client.as_ref(),
             &format!("tln/{target_device}/ask"),
+            false,
+            &enc_msg,
+        )
+        .await;
+    }
+
+    async fn file(&mut self, cmd: &Cmd) {
+        let mut msg = String::new();
+        for t in &cmd.data[0..] {
+            msg += t;
+            msg += " ";
+        }
+
+        let msg = msg.trim();
+
+        let enc_msg = utils::encrypt(&cfg::key(), msg).unwrap();
+
+        mqtt::utils::publish(
+            &self.msg_tx,
+            self.client.as_ref(),
+            &format!("tln/{}/file", cmd.reply),
             false,
             &enc_msg,
         )
@@ -203,6 +229,7 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_SHOW => self.show(cmd).await,
                 msg::ACT_ASK => self.ask(cmd).await,
                 msg::ACT_REPLY => self.reply(cmd).await,
+                msg::ACT_FILE => self.file(cmd).await,
                 msg::ACT_PUBLISH => {
                     mqtt::utils::publish(
                         &self.msg_tx,

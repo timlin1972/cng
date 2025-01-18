@@ -44,6 +44,25 @@ impl Plugin {
 
         if let Some(d) = self.devices.iter_mut().find(|d| d.name == device.name) {
             d.ts = device.ts;
+            // log if onboard is changed
+            if device.onboard.is_some() && (device.onboard != d.onboard) {
+                log(
+                    &self.msg_tx,
+                    cfg::name(),
+                    Info,
+                    format!(
+                        "[{NAME}] device '{}' {} at {}",
+                        device.name,
+                        if device.onboard.unwrap() {
+                            "onboard"
+                        } else {
+                            "offboard"
+                        },
+                        utils::ts_str_full(utils::ts()),
+                    ),
+                )
+                .await;
+            }
             if device.onboard.is_some() {
                 // ask system update if onboard from false to true
                 if device.onboard.unwrap() && (d.onboard.is_none() || !d.onboard.unwrap()) {
@@ -63,6 +82,9 @@ impl Plugin {
             if device.weather.is_some() {
                 d.weather = device.weather.clone();
             }
+            if device.last_seen.is_some() {
+                d.last_seen = device.last_seen;
+            }
 
             // clear all if not onboard
             if device.onboard.is_some() && !device.onboard.unwrap() {
@@ -70,9 +92,28 @@ impl Plugin {
                 d.version = None;
                 d.temperature = None;
                 d.weather = None;
+                // d.last_seen = None;  // keep last_seen
             }
         } else {
             self.devices.push(device.clone());
+            if device.onboard.is_some() {
+                log(
+                    &self.msg_tx,
+                    cfg::name(),
+                    Info,
+                    format!(
+                        "[{NAME}] device '{}' {} at {}",
+                        device.name,
+                        if device.onboard.unwrap() {
+                            "onboard"
+                        } else {
+                            "offboard"
+                        },
+                        utils::ts_str_full(utils::ts()),
+                    ),
+                )
+                .await;
+            }
             if device.onboard.is_some() && device.onboard.unwrap() {
                 ask_device_update(&self.msg_tx, &device.name).await;
             }

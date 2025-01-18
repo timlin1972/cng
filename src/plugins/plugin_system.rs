@@ -7,7 +7,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.1.1";
+const VERSION: &str = "0.1.4";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {

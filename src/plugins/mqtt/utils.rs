@@ -3,7 +3,7 @@ use rumqttc::{AsyncClient, Event, Outgoing, Packet, Publish, QoS};
 use tokio::sync::mpsc::Sender;
 
 use crate::msg::{self, device_update, log, DevInfo, Msg};
-use crate::plugins::{plugin_mqtt, plugin_system};
+use crate::plugins::{plugin_file, plugin_mqtt, plugin_system};
 use crate::{cfg, utils};
 
 const NAME: &str = "mqtt::utils";
@@ -172,6 +172,9 @@ async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
     if process_event_publish_reply(msg_tx, publish).await {
         return;
     }
+    if process_event_publish_file(msg_tx, publish).await {
+        return;
+    }
     log(
         msg_tx,
         cfg::name(),
@@ -179,6 +182,19 @@ async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
         format!("[{NAME}] <- ({publish:?})"),
     )
     .await;
+}
+
+fn parse(input: &str) -> Vec<String> {
+    let re = regex::Regex::new(r#""([^"]+)"|(\S+)"#).unwrap();
+    re.captures_iter(input)
+        .map(|cap| {
+            if let Some(m) = cap.get(1) {
+                m.as_str().to_string() // 捕獲引號內的字串
+            } else {
+                cap.get(2).unwrap().as_str().to_string() // 捕獲無引號的字串
+            }
+        })
+        .collect()
 }
 
 async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
@@ -191,10 +207,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
             let payload = std::str::from_utf8(&publish.payload).unwrap();
             let dec_payload = utils::decrypt(&cfg::key(), payload).unwrap();
 
-            let payload_vec: Vec<String> = dec_payload
-                .split_whitespace()
-                .map(|s| s.to_string())
-                .collect();
+            let payload_vec: Vec<String> = parse(&dec_payload);
 
             log(
                 msg_tx,
@@ -406,6 +419,18 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
         )
         .await;
 
+        // update the last seen if onboard is true OR any of uptime, version, temperature, weather is not None
+        let last_seen = if (onboard.is_some() && onboard.unwrap())
+            || uptime.is_some()
+            || version.is_some()
+            || temperature.is_some()
+            || weather.is_some()
+        {
+            Some(utils::ts())
+        } else {
+            None
+        };
+
         device_update(
             msg_tx,
             DevInfo {
@@ -416,9 +441,52 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 version,
                 temperature,
                 weather,
+                last_seen,
             },
         )
         .await;
+
+        return true;
+    }
+
+    false
+}
+
+async fn process_event_publish_file(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
+    let topic = &publish.topic;
+
+    let re = regex::Regex::new(r"^tln/([^/]+)/file$").unwrap();
+    if let Some(captures) = re.captures(topic) {
+        if let Some(name) = captures.get(1) {
+            let name = name.as_str();
+
+            if name == cfg::name() {
+                let payload = std::str::from_utf8(&publish.payload).unwrap();
+                let dec_payload = utils::decrypt(&cfg::key(), payload).unwrap();
+
+                let payload_vec: Vec<String> = dec_payload
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect();
+
+                log(
+                    msg_tx,
+                    cfg::name(),
+                    Trace,
+                    format!("[{NAME}] <- publish::reply: {name}, '{dec_payload}'"),
+                )
+                .await;
+
+                msg::cmd(
+                    msg_tx,
+                    cfg::name(),
+                    plugin_file::NAME.to_owned(),
+                    msg::ACT_FILE.to_owned(),
+                    payload_vec,
+                )
+                .await;
+            }
+        }
 
         return true;
     }

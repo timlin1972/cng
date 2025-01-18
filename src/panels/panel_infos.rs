@@ -111,8 +111,10 @@ impl Panel {
                 }
             }
             1 => {
-                self.output
-                    .push(format!("{:<12} {:<7} {:64}", "Name", "Onboard", "Weather"));
+                self.output.push(format!(
+                    "{:<12} {:<7} {:<27} {:64}",
+                    "Name", "Onboard", "Last seen", "Weather"
+                ));
                 for device in self.devices.iter() {
                     // onboard
                     let onboard = if let Some(t) = device.onboard {
@@ -132,10 +134,18 @@ impl Panel {
                         "n/a".to_owned()
                     };
 
+                    // last_seen
+                    let last_seen = if let Some(t) = device.last_seen {
+                        utils::ts_str_full(t)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
                     self.output.push(format!(
-                        "{:<12} {onboard:<7} {weather:64}",
+                        "{:<12} {onboard:<7} {last_seen:<27} {weather:64}",
                         device.name,
                         onboard = onboard,
+                        last_seen = last_seen,
                         weather = weather,
                     ));
                 }

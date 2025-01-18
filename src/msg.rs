@@ -41,6 +41,8 @@ pub struct Msg {
 //  trace       log         0/1             -               -               -       -
 //  weather     weather     name            time            temperature     code    -
 //  update      weather     -               -               -               -       -
+//  get         file        filename        -               -               -       -
+//  stop        file        -               -               -               -       -
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
 pub const ACT_ASK: &str = "ask";
@@ -57,6 +59,8 @@ pub const ACT_STOP: &str = "stop";
 pub const ACT_CMD: &str = "cmd";
 pub const ACT_TRACE: &str = "trace";
 pub const ACT_WEATHER: &str = "weather";
+pub const ACT_PUT: &str = "put";
+pub const ACT_FILE: &str = "file";
 
 #[derive(Debug, Clone)]
 pub struct Cmd {
@@ -80,6 +84,7 @@ pub struct DevInfo {
     pub version: Option<String>,
     pub temperature: Option<f32>,
     pub weather: Option<String>,
+    pub last_seen: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -90,6 +95,53 @@ pub struct City {
     pub ts: Option<i64>,
     pub temperature: Option<f32>,
     pub code: Option<u8>,
+}
+
+pub async fn file_filename(msg_tx: &Sender<Msg>, reply: String, filename: String, sequence: usize) {
+    msg_tx
+        .send(Msg {
+            ts: utils::ts(),
+            plugin: plugin_mqtt::NAME.to_owned(),
+            data: Data::Cmd(Cmd {
+                reply,
+                action: ACT_FILE.to_owned(),
+                data: vec!["filename".to_owned(), filename, sequence.to_string()],
+            }),
+        })
+        .await
+        .unwrap();
+}
+
+pub async fn file_content(msg_tx: &Sender<Msg>, reply: String, sequence: usize, content: &[u8]) {
+    let content = ascii85::encode(content);
+
+    msg_tx
+        .send(Msg {
+            ts: utils::ts(),
+            plugin: plugin_mqtt::NAME.to_owned(),
+            data: Data::Cmd(Cmd {
+                reply,
+                action: ACT_FILE.to_owned(),
+                data: vec!["content".to_owned(), sequence.to_string(), content],
+            }),
+        })
+        .await
+        .unwrap();
+}
+
+pub async fn file_end(msg_tx: &Sender<Msg>, reply: String, sequence: usize) {
+    msg_tx
+        .send(Msg {
+            ts: utils::ts(),
+            plugin: plugin_mqtt::NAME.to_owned(),
+            data: Data::Cmd(Cmd {
+                reply,
+                action: ACT_FILE.to_owned(),
+                data: vec!["end".to_owned(), sequence.to_string()],
+            }),
+        })
+        .await
+        .unwrap();
 }
 
 pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {
@@ -109,7 +161,7 @@ pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: St
                 plugin: plugin_mqtt::NAME.to_owned(),
                 data: Data::Cmd(Cmd {
                     reply,
-                    action: "reply".to_owned(),
+                    action: ACT_REPLY.to_owned(),
                     data: vec![level.to_string(), msg],
                 }),
             })

@@ -7,7 +7,7 @@ mod panels;
 mod plugins;
 mod utils;
 
-pub const MSG_SIZE: usize = 1024;
+pub const MSG_SIZE: usize = 4096;
 pub const KEY_SIZE: usize = 32;
 
 #[tokio::main]

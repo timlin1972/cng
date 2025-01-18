@@ -115,19 +115,21 @@ impl Plugin {
             loop {
                 for city in &weather {
                     let weather = utils::weather(city.latitude, city.longitude).await;
-                    msg::cmd(
-                        &msg_tx_clone,
-                        cfg::name(),
-                        NAME.to_owned(),
-                        msg::ACT_WEATHER.to_owned(),
-                        vec![
-                            city.name.to_owned(),
-                            weather.time.to_owned(),
-                            weather.temperature.to_string(),
-                            weather.code.to_string(),
-                        ],
-                    )
-                    .await;
+                    if let Ok(weather) = weather {
+                        msg::cmd(
+                            &msg_tx_clone,
+                            cfg::name(),
+                            NAME.to_owned(),
+                            msg::ACT_WEATHER.to_owned(),
+                            vec![
+                                city.name.to_owned(),
+                                weather.time.to_owned(),
+                                weather.temperature.to_string(),
+                                weather.code.to_string(),
+                            ],
+                        )
+                        .await;
+                    }
                 }
 
                 tokio::time::sleep(tokio::time::Duration::from_secs(WEATHER_POLLING)).await;
@@ -188,9 +190,11 @@ impl Plugin {
     async fn update(&mut self, cmd: &Cmd) {
         for city in &mut self.weather {
             let weather = utils::weather(city.latitude, city.longitude).await;
-            city.ts = Some(datetime_str_to_ts(&weather.time));
-            city.temperature = Some(weather.temperature);
-            city.code = Some(weather.code);
+            if let Ok(weather) = weather {
+                city.ts = Some(datetime_str_to_ts(&weather.time));
+                city.temperature = Some(weather.temperature);
+                city.code = Some(weather.code);
+            }
         }
 
         msg::weather(&self.msg_tx, self.weather.clone()).await;

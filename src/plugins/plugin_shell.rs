@@ -94,6 +94,14 @@ impl Plugin {
             return;
         }
 
+        log(
+            &self.msg_tx,
+            cmd.reply.to_owned(),
+            Info,
+            format!("[{NAME}] cmd: {:?}", cmd.data[0]),
+        )
+        .await;
+
         if self.stdin.is_none() {
             log(
                 &self.msg_tx,
