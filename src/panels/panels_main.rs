@@ -12,7 +12,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
 use crate::msg::{log, Data, Msg};
-use crate::panels::{panel_brief, panel_devices, panel_error, panel_log};
+use crate::panels::{panel_brief, panel_infos, panel_error, panel_log};
 
 pub const NAME: &str = "panels";
 
@@ -52,7 +52,7 @@ impl Panels {
         let panels = vec![
             Box::new(panel_log::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
             Box::new(panel_brief::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
-            Box::new(panel_devices::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
+            Box::new(panel_infos::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
             Box::new(panel_error::Panel::new(msg_tx.clone())) as Box<dyn Panel>,
         ];
 
@@ -124,7 +124,7 @@ impl Panels {
             let area_height = match window.name() {
                 panel_log::NAME => area_log.height,
                 panel_brief::NAME => area_brief.height,
-                panel_devices::NAME => area_info.height,
+                panel_infos::NAME => area_info.height,
                 panel_error::NAME => area_error.height,
                 _ => panic!(),
             };
@@ -143,7 +143,7 @@ impl Panels {
                 match window.name() {
                     panel_log::NAME => area_log,
                     panel_brief::NAME => area_brief,
-                    panel_devices::NAME => area_info,
+                    panel_infos::NAME => area_info,
                     panel_error::NAME => area_error,
                     _ => panic!(),
                 },
@@ -223,10 +223,10 @@ impl Panels {
                 }
             },
             Data::Devices(_devices) => {
-                self.get_panel_mut(panel_devices::NAME).msg(msg).await;
+                self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
             Data::DeviceCountdown => {
-                self.get_panel_mut(panel_devices::NAME).msg(msg).await;
+                self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
             _ => {
                 log(

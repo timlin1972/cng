@@ -8,7 +8,7 @@ use crate::panels::panels_main::{self, Popup};
 use crate::utils;
 use crate::{cfg, msg};
 
-pub const NAME: &str = "Devices";
+pub const NAME: &str = "Infos";
 const POPUP_HELP: &str = "Help";
 const DEVICES_POLLING: u64 = 60;
 const TABS: usize = 2;
