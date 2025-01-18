@@ -10,6 +10,9 @@ pub const DEF_NAME: &str = "cng_default";
 const CFG_FILE: &str = "./cfg.json";
 const KEY: &str = "an example very very secret key."; // length is fixed
 const SHELL: &str = "sh";
+pub const MODE_CLI: &str = "cli";
+pub const MODE_GUI: &str = "gui";
+const TRACE: u8 = 1;
 
 static INSTANCE: Lazy<Mutex<Cfg>> = Lazy::new(|| Mutex::new(Cfg::new()));
 
@@ -25,6 +28,14 @@ fn default_sh() -> String {
     SHELL.to_string()
 }
 
+fn default_mode() -> String {
+    MODE_CLI.to_string()
+}
+
+fn default_trace() -> u8 {
+    TRACE
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Cfg {
     #[serde(default = "default_name")]
@@ -33,6 +44,10 @@ pub struct Cfg {
     key: String,
     #[serde(default = "default_sh")]
     shell: String,
+    #[serde(default = "default_mode")]
+    mode: String,
+    #[serde(default = "default_trace")]
+    trace: u8,
 }
 
 impl Cfg {
@@ -44,6 +59,8 @@ impl Cfg {
                 name: DEF_NAME.to_owned(),
                 key: KEY.to_owned(),
                 shell: SHELL.to_owned(),
+                mode: MODE_CLI.to_owned(),
+                trace: TRACE,
             }
         } else {
             let file_content = fs::read_to_string(CFG_FILE).unwrap();
@@ -72,6 +89,14 @@ impl Cfg {
     fn shell(&self) -> &str {
         &self.shell
     }
+
+    fn mode(&self) -> &str {
+        &self.mode
+    }
+
+    fn trace(&self) -> u8 {
+        self.trace
+    }
 }
 
 pub fn name() -> String {
@@ -87,4 +112,14 @@ pub fn key() -> String {
 pub fn shell() -> String {
     let cfg = Cfg::get_instance();
     cfg.shell().to_owned()
+}
+
+pub fn mode() -> String {
+    let cfg = Cfg::get_instance();
+    cfg.mode().to_owned()
+}
+
+pub fn trace() -> u8 {
+    let cfg = Cfg::get_instance();
+    cfg.trace()
 }

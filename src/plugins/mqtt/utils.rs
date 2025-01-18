@@ -304,8 +304,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
     let topic = &publish.topic;
 
     let re =
-        regex::Regex::new(r"^tln/([^/]+)/(onboard|uptime|version|temperature|weather)$")
-            .unwrap();
+        regex::Regex::new(r"^tln/([^/]+)/(onboard|uptime|version|temperature|weather)$").unwrap();
     if let Some(captures) = re.captures(topic) {
         let name = &captures[1];
         let key = &captures[2];

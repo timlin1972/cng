@@ -1,58 +1,16 @@
 use async_trait::async_trait;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use log::Level::{Error, Trace};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
+use crate::command::{self, Cli, Commands};
 use crate::msg::{self, log, Data, Msg};
 use crate::panels::panels_main::{self, Popup};
 
 pub const NAME: &str = "Brief";
 const POPUP_HELP: &str = "Help";
-const UNKNOWN_COMMAND: &str = "Unknown command. Input 'h' for help.";
-
-const HELP_TEXT: &str = r#"Commands:
-    h    - Help
-    q    - Quit
-
-    p <plugin> <action> ...
-        plugin: plugins, device, log, ...
-                use 'p plugins show' to get plugin list
-        action: init, show, action
-    Example:
-        p plugins show
-        p devices show
-        p devices show pi5
-        p mqtt show
-        p mqtt ask pi5 p wol wake linds
-        p mqtt ask pi5 p system quit
-        p wol wake linds
-        p ping ping www.google.com
-"#;
-
-#[derive(Parser, Debug)]
-#[command(
-    name = "Center NG",
-    version = "1.0",
-    author = "Tim",
-    about = "Center Next Generation"
-)]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Subcommand, Debug)]
-enum Commands {
-    H,
-    Q,
-    P {
-        plugin: String,
-        action: String,
-        data: Vec<String>,
-    },
-}
 
 #[derive(Debug)]
 pub struct Panel {
@@ -76,7 +34,7 @@ impl Panel {
                 name: POPUP_HELP.to_owned(),
                 x: 50,
                 y: 40,
-                text: HELP_TEXT.to_owned(),
+                text: command::HELP_TEXT.to_owned(),
             }],
             msg_tx,
             history: vec![],
@@ -186,7 +144,7 @@ impl panels_main::Panel for Panel {
         let cli = match Cli::try_parse_from(args) {
             Ok(t) => t,
             Err(_) => {
-                self.output_push(UNKNOWN_COMMAND.to_owned());
+                self.output_push(command::UNKNOWN_COMMAND.to_owned());
                 return ret;
             }
         };
@@ -214,7 +172,7 @@ impl panels_main::Panel for Panel {
             }
 
             None => {
-                self.output_push(UNKNOWN_COMMAND.to_owned());
+                self.output_push(command::UNKNOWN_COMMAND.to_owned());
             }
         }
 

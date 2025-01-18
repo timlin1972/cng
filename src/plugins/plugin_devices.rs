@@ -172,13 +172,14 @@ impl Plugin {
                     self.show_device(cmd, device).await;
                 }
             } else {
-                log(
-                    &self.msg_tx,
-                    cmd.reply.clone(),
-                    Info,
-                    device.name.to_string(),
-                )
-                .await;
+                self.show_device(cmd, device).await;
+                // log(
+                //     &self.msg_tx,
+                //     cmd.reply.clone(),
+                //     Info,
+                //     format!("{}: {}", device.name, if device.onboard.unwrap() { "On" } else { "off" }),
+                // )
+                // .await;
             }
         }
     }

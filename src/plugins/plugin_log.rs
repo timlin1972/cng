@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use log::Level::{Error, Trace};
+use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, log, Data, Msg};
+use crate::msg::{self, log, Cmd, Data, Msg};
 use crate::panels::panels_main;
 use crate::plugins::plugins_main;
 
@@ -13,6 +13,7 @@ pub const NAME: &str = "log";
 pub struct Plugin {
     name: String,
     msg_tx: Sender<Msg>,
+    trace: u8,
 }
 
 impl Plugin {
@@ -20,11 +21,50 @@ impl Plugin {
         Self {
             name: NAME.to_owned(),
             msg_tx,
+            trace: cfg::trace(),
         }
     }
 
     async fn init(&mut self) {
         log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+    }
+
+    async fn show(&mut self, cmd: &Cmd) {
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("Trace: {}", self.trace),
+        )
+        .await;
+    }
+
+    async fn trace(&mut self, cmd: &Cmd) {
+        match cmd.data.first() {
+            Some(trace) => match trace.parse::<u8>() {
+                Ok(trace) => {
+                    self.trace = trace;
+                }
+                Err(_) => {
+                    log(
+                        &self.msg_tx,
+                        cmd.reply.clone(),
+                        Error,
+                        format!("[{NAME}] invalid trace: {:?}", trace),
+                    )
+                    .await;
+                }
+            },
+            None => {
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Error,
+                    format!("[{NAME}] missing trace"),
+                )
+                .await;
+            }
+        }
     }
 }
 
@@ -38,6 +78,8 @@ impl plugins_main::Plugin for Plugin {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
                 msg::ACT_INIT => self.init().await,
+                msg::ACT_SHOW => self.show(cmd).await,
+                msg::ACT_TRACE => self.trace(cmd).await,
                 _ => {
                     log(
                         &self.msg_tx,
@@ -49,16 +91,25 @@ impl plugins_main::Plugin for Plugin {
                 }
             },
             // redirect log to panels
-            Data::Log(log) => {
-                self.msg_tx
-                    .send(Msg {
-                        ts: msg.ts,
-                        plugin: panels_main::NAME.to_owned(),
-                        data: Data::Log(log.clone()),
-                    })
-                    .await
-                    .unwrap();
-            }
+            Data::Log(log) => match cfg::mode().as_str() {
+                cfg::MODE_CLI => {
+                    if self.trace == 0 && log.level == Trace {
+                        return false;
+                    }
+                    println!("[{}] {}", log.level, log.msg);
+                }
+                cfg::MODE_GUI => {
+                    self.msg_tx
+                        .send(Msg {
+                            ts: msg.ts,
+                            plugin: panels_main::NAME.to_owned(),
+                            data: Data::Log(log.clone()),
+                        })
+                        .await
+                        .unwrap();
+                }
+                _ => (),
+            },
             _ => {
                 log(
                     &self.msg_tx,

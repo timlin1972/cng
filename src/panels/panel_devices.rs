@@ -105,10 +105,8 @@ impl Panel {
                 }
             }
             1 => {
-                self.output.push(format!(
-                    "{:<12} {:<7} {:64}",
-                    "Name", "Onboard", "Weather"
-                ));
+                self.output
+                    .push(format!("{:<12} {:<7} {:64}", "Name", "Onboard", "Weather"));
                 for device in self.devices.iter() {
                     // onboard
                     let onboard = if let Some(t) = device.onboard {

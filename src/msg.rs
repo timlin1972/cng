@@ -37,6 +37,7 @@ pub struct Msg {
 //  start       shell       -                   -       -       -       -
 //  cmd         shell       cmd                 -       -       -       -
 //  stop        shell       -                   -       -       -       -
+//  trace       log         0/1                 -       -       -       -
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
 pub const ACT_ASK: &str = "ask";
@@ -51,6 +52,7 @@ pub const ACT_UPDATE_ITEM: &str = "update_item";
 pub const ACT_START: &str = "start";
 pub const ACT_STOP: &str = "stop";
 pub const ACT_CMD: &str = "cmd";
+pub const ACT_TRACE: &str = "trace";
 
 #[derive(Debug, Clone)]
 pub struct Cmd {

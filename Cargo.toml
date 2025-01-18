@@ -9,12 +9,12 @@ async-trait = "0.1.85"
 base64 = "0.22.1"
 chrono = "0.4.39"
 clap = { version = "4.0", features = ["derive"] }
-isahc = "1.7.2"
 log = "0.4.25"
 once_cell = "1.20.2"
 rand = "0.8.5"
 ratatui = "0.29.0"
 regex = "1.11.1"
+reqwest = "0.12.12"
 rumqttc = "0.24.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.128"
