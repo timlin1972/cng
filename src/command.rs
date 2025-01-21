@@ -22,8 +22,11 @@ pub const HELP_TEXT: &str = r#"Commands:
         p mqtt ask pi5 p system quit
         p wol wake linds
         p ping ping www.google.com
+        p shell start
+        p shell cmd "pwd"
+        p shell stop
 "#;
-
+pub const ALL_TEXT: &str = "All";
 #[derive(Parser, Debug)]
 #[command(
     name = "Center NG",
@@ -40,6 +43,7 @@ pub struct Cli {
 pub enum Commands {
     H,
     Q,
+    A,
     P {
         plugin: String,
         action: String,
@@ -63,6 +67,9 @@ pub async fn run(msg_tx: &Sender<Msg>, cmd: &str) -> bool {
     match cli.command {
         Some(Commands::H) => {
             println!("{HELP_TEXT}");
+        }
+        Some(Commands::A) => {
+            println!("{ALL_TEXT}");
         }
         Some(Commands::Q) => {
             println!("Exiting...");

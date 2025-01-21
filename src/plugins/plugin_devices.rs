@@ -174,7 +174,7 @@ impl Plugin {
 
         // temperature
         let temperature = if let Some(t) = device.temperature {
-            format!("{:.1}", t)
+            format!("{:.1}°C", t)
         } else {
             "n/a".to_owned()
         };
@@ -182,7 +182,7 @@ impl Plugin {
             &self.msg_tx,
             cmd.reply.clone(),
             Info,
-            format!("    Temperature: {temperature}°C"),
+            format!("    Temperature: {temperature}"),
         )
         .await;
 

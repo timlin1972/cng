@@ -168,8 +168,17 @@ impl Panels {
                     .style(Style::default().bg(Color::Black).fg(Color::White));
                 frame.render_widget(popup_block.clone(), popup_area);
 
+                let area_height = popup_area.height;
+
+                let scroll_offset = if popup.text.lines().count() as u16 > (area_height - 2) {
+                    popup.text.lines().count() as u16 - (area_height - 2)
+                } else {
+                    0
+                };
                 let text = Paragraph::new(Text::from(popup.text.clone()))
-                    .style(Style::default().fg(Color::Yellow));
+                    .style(Style::default().fg(Color::Yellow))
+                    .scroll((scroll_offset, 0));
+
                 frame.render_widget(text, popup_block.inner(popup_area));
             }
         }

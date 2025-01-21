@@ -11,6 +11,7 @@ use crate::panels::panels_main::{self, Popup};
 
 pub const NAME: &str = "Brief";
 const POPUP_HELP: &str = "Help";
+const POPUP_ALL: &str = "All";
 
 #[derive(Debug)]
 pub struct Panel {
@@ -29,13 +30,22 @@ impl Panel {
             name: NAME.to_owned(),
             input: "".to_owned(),
             output: vec![],
-            popup: vec![Popup {
-                show: false,
-                name: POPUP_HELP.to_owned(),
-                x: 50,
-                y: 40,
-                text: command::HELP_TEXT.to_owned(),
-            }],
+            popup: vec![
+                Popup {
+                    show: false,
+                    name: POPUP_HELP.to_owned(),
+                    x: 50,
+                    y: 70,
+                    text: command::HELP_TEXT.to_owned(),
+                },
+                Popup {
+                    show: false,
+                    name: POPUP_ALL.to_owned(),
+                    x: 100,
+                    y: 80,
+                    text: "".to_owned(),
+                },
+            ],
             msg_tx,
             history: vec![],
             history_index: 0,
@@ -162,6 +172,16 @@ impl panels_main::Panel for Panel {
             Some(Commands::Q) => {
                 self.output_push("Quit".to_owned());
                 ret = true;
+            }
+            Some(Commands::A) => {
+                self.output_push("Popup All window".to_owned());
+                for p in &mut self.popup {
+                    if p.name == POPUP_ALL {
+                        p.show = true;
+                        p.text = self.output.join("\n");
+                        break;
+                    }
+                }
             }
             Some(Commands::P {
                 plugin,
