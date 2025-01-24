@@ -2,7 +2,7 @@ use std::process::Stdio;
 
 use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc::Sender;
 
@@ -18,6 +18,19 @@ pub struct Plugin {
     msg_tx: Sender<Msg>,
     child: Option<Child>,
     stdin: Option<tokio::process::ChildStdin>,
+}
+
+fn split_lines(buffer: &mut [u8], n: usize) -> Vec<String> {
+    let separate = if std::env::consts::OS == "windows" {
+        "\r\n"
+    }
+    else {
+        "\n"
+    };
+
+    let line = String::from_utf8_lossy(&buffer[..n]).to_string();
+    let lines: Vec<String> = line.split(separate).map(|s| s.trim().to_string()).collect();
+    lines
 }
 
 impl Plugin {
@@ -37,30 +50,55 @@ impl Plugin {
     async fn stdout_task(&mut self, child: &mut Child, cmd: &Cmd) {
         let stdout = child.stdout.take().expect("Failed to open stdout");
 
-        let mut reader = BufReader::new(stdout).lines();
+        let mut reader = BufReader::new(stdout);
         let reply = cmd.reply.to_owned();
         let msg_tx = self.msg_tx.clone();
         tokio::spawn(async move {
-            while let Some(line) = reader.next_line().await.unwrap() {
-                log(&msg_tx, reply.to_owned(), Info, line).await;
+            let mut buffer = vec![0; 1024];
+
+            while let Ok(n) = reader.read(&mut buffer).await {
+                if n == 0 {
+                    break; // EOF reached
+                }
+                let lines = split_lines(&mut buffer, n);
+                for line in lines {
+                    log(&msg_tx, reply.to_owned(), Info, line.to_owned()).await;
+                }
             }
         });
     }
 
     async fn stderr_task(&mut self, child: &mut Child, cmd: &Cmd) {
         let stderr = child.stderr.take().expect("Failed to open stdout");
-        let mut reader = BufReader::new(stderr).lines();
+        let mut reader = BufReader::new(stderr);
         let reply = cmd.reply.to_owned();
         let msg_tx = self.msg_tx.clone();
         tokio::spawn(async move {
-            while let Some(line) = reader.next_line().await.unwrap() {
-                log(&msg_tx, reply.to_owned(), Info, line).await;
+            let mut buffer = vec![0; 1024];
+
+            while let Ok(n) = reader.read(&mut buffer).await {
+                if n == 0 {
+                    break; // EOF reached
+                }
+                let lines = split_lines(&mut buffer, n);
+                for line in lines {
+                    log(&msg_tx, reply.to_owned(), Info, line.to_owned()).await;
+                }
             }
         });
     }
 
     async fn start(&mut self, cmd: &Cmd) {
-        let mut child = Command::new(cfg::shell())
+        let mut shell_command = if std::env::consts::OS == "windows" {
+            let mut cmd = Command::new(cfg::shell());
+            cmd.arg("/K");
+            cmd.arg("chcp 65001 >nul");
+            cmd
+        } else {
+            Command::new(cfg::shell())
+        };
+
+        let mut child = shell_command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

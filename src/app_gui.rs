@@ -78,6 +78,7 @@ impl App {
                 }
                 Some(event) = self.key_rx.recv() => {
                     if let Event::Key(key) = event {
+                        if key.kind == event::KeyEventKind::Release { continue }
                         if self.panels.key(key).await { return Ok(()) }
                     }
                 }
