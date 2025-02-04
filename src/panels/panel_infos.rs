@@ -15,7 +15,7 @@ h      - Help
 ⭠ / ⭢  - Change tab
 "#;
 const DEVICES_POLLING: u64 = 60;
-const TABS: usize = 3;
+const TABS: usize = 4;
 
 #[derive(Debug)]
 pub struct Panel {
@@ -55,8 +55,8 @@ impl Panel {
         match self.tab_index {
             0 => {
                 self.output.push(format!(
-                    "{:<12} {:<7} {:13} {:<10} {:<7} {:<11} {:<10}",
-                    "Name", "Onboard", "Uptime", "Version", "Temp", "Last update", "Countdown"
+                    "{:<12} {:<7} {:<10} {:<7} {:<11} {:<10}",
+                    "Name", "Onboard", "Version", "Temp", "Last update", "Countdown"
                 ));
                 for device in self.devices.iter() {
                     // onboard
@@ -68,13 +68,6 @@ impl Panel {
                         }
                     } else {
                         "n/a"
-                    };
-
-                    // uptime
-                    let uptime = if let Some(t) = device.uptime {
-                        utils::uptime_str(t)
-                    } else {
-                        "n/a".to_owned()
                     };
 
                     // version
@@ -104,13 +97,50 @@ impl Panel {
                     };
 
                     self.output.push(format!(
-                        "{:<12} {onboard:<7} {uptime:13} {version:<10} {temperature:<7} {:<11} {countdown:<10}",
+                        "{:<12} {onboard:<7} {version:<10} {temperature:<7} {:<11} {countdown:<10}",
                         device.name,
                         utils::ts_str(device.ts),
                     ));
                 }
             }
             1 => {
+                self.output.push(format!(
+                    "{:<12} {:<7} {:13} {:13}",
+                    "Name", "Onboard", "App uptime", "Host uptime"
+                ));
+                for device in self.devices.iter() {
+                    // onboard
+                    let onboard = if let Some(t) = device.onboard {
+                        if t {
+                            "On"
+                        } else {
+                            "Off"
+                        }
+                    } else {
+                        "n/a"
+                    };
+
+                    // app uptime
+                    let app_uptime = if let Some(t) = device.app_uptime {
+                        utils::uptime_str(t)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // host uptime
+                    let host_uptime = if let Some(t) = device.host_uptime {
+                        utils::uptime_str(t)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    self.output.push(format!(
+                        "{:<12} {onboard:<7} {app_uptime:13} {host_uptime:13}",
+                        device.name,
+                    ));
+                }
+            }
+            2 => {
                 self.output.push(format!(
                     "{:<12} {:<7} {:<27} {:64}",
                     "Name", "Onboard", "Last seen", "Weather"
@@ -150,7 +180,7 @@ impl Panel {
                     ));
                 }
             }
-            2 => {
+            3 => {
                 self.output.push(format!(
                     "{:<12} {:<11} {:7} {:20}",
                     "City", "Datetime", "Temp", "Weather"

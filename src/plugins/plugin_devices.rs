@@ -70,8 +70,11 @@ impl Plugin {
                 }
                 d.onboard = device.onboard;
             }
-            if device.uptime.is_some() {
-                d.uptime = device.uptime;
+            if device.app_uptime.is_some() {
+                d.app_uptime = device.app_uptime;
+            }
+            if device.host_uptime.is_some() {
+                d.host_uptime = device.host_uptime;
             }
             if device.version.is_some() {
                 d.version = device.version.clone();
@@ -88,7 +91,8 @@ impl Plugin {
 
             // clear all if not onboard
             if device.onboard.is_some() && !device.onboard.unwrap() {
-                d.uptime = None;
+                d.app_uptime = None;
+                d.host_uptime = None;
                 d.version = None;
                 d.temperature = None;
                 d.weather = None;
@@ -148,8 +152,8 @@ impl Plugin {
         )
         .await;
 
-        // uptime
-        let uptime = if let Some(t) = device.uptime {
+        // app uptime
+        let app_uptime = if let Some(t) = device.app_uptime {
             utils::uptime_str(t)
         } else {
             "n/a".to_owned()
@@ -158,7 +162,21 @@ impl Plugin {
             &self.msg_tx,
             cmd.reply.clone(),
             Info,
-            format!("    Uptime: {uptime}"),
+            format!("    App uptime: {app_uptime}"),
+        )
+        .await;
+
+        // host uptime
+        let host_uptime = if let Some(t) = device.host_uptime {
+            utils::uptime_str(t)
+        } else {
+            "n/a".to_owned()
+        };
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    Host uptime: {host_uptime}"),
         )
         .await;
 

@@ -7,7 +7,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.1.4";
+const VERSION: &str = "0.1.5";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -27,6 +27,7 @@ pub struct Plugin {
     msg_tx: Sender<Msg>,
     temperature: f32,
     weather: String,
+    ts_start: u64,
 }
 
 impl Plugin {
@@ -36,6 +37,7 @@ impl Plugin {
             msg_tx,
             temperature: 0.0,
             weather: "n/a".to_owned(),
+            ts_start: utils::uptime(),
         }
     }
 
@@ -43,6 +45,7 @@ impl Plugin {
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
             loop {
+                // weather
                 let weather = utils::device_weather().await;
                 msg::cmd(
                     &msg_tx_clone,
@@ -81,14 +84,31 @@ impl Plugin {
     }
 
     async fn show(&mut self, cmd: &Cmd) {
+        // app uptime
         log(
             &self.msg_tx,
             cmd.reply.clone(),
             Info,
-            format!("[{NAME}] Uptime: {}", utils::uptime_str(utils::uptime())),
+            format!(
+                "[{NAME}] App uptime: {}",
+                utils::uptime_str(utils::uptime() - self.ts_start)
+            ),
         )
         .await;
 
+        // host uptime
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!(
+                "[{NAME}] Host uptime: {}",
+                utils::uptime_str(utils::uptime())
+            ),
+        )
+        .await;
+
+        // version
         log(
             &self.msg_tx,
             cmd.reply.clone(),
@@ -97,6 +117,7 @@ impl Plugin {
         )
         .await;
 
+        // temperature
         log(
             &self.msg_tx,
             cmd.reply.clone(),
@@ -105,6 +126,7 @@ impl Plugin {
         )
         .await;
 
+        // weather
         log(
             &self.msg_tx,
             cmd.reply.clone(),
@@ -114,6 +136,7 @@ impl Plugin {
         .await;
     }
 
+    // self update
     async fn update_item(&mut self, cmd: &Cmd) {
         match cmd.data.first().unwrap().as_str() {
             "weather" => {
@@ -146,14 +169,33 @@ impl Plugin {
         )
         .await;
 
-        // uptime
+        // app uptime
+        let uptime = utils::uptime() - self.ts_start;
+        msg::cmd(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            plugin_mqtt::NAME.to_owned(),
+            msg::ACT_PUBLISH.to_owned(),
+            vec![
+                "app_uptime".to_owned(),
+                "false".to_owned(),
+                uptime.to_string(),
+            ],
+        )
+        .await;
+
+        // host uptime
         let uptime = utils::uptime();
         msg::cmd(
             &self.msg_tx,
             cmd.reply.clone(),
             plugin_mqtt::NAME.to_owned(),
             msg::ACT_PUBLISH.to_owned(),
-            vec!["uptime".to_owned(), "false".to_owned(), uptime.to_string()],
+            vec![
+                "host_uptime".to_owned(),
+                "false".to_owned(),
+                uptime.to_string(),
+            ],
         )
         .await;
 

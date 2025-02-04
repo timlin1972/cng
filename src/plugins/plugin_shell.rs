@@ -23,8 +23,7 @@ pub struct Plugin {
 fn split_lines(buffer: &mut [u8], n: usize) -> Vec<String> {
     let separate = if std::env::consts::OS == "windows" {
         "\r\n"
-    }
-    else {
+    } else {
         "\n"
     };
 

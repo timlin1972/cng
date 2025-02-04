@@ -327,14 +327,16 @@ async fn process_event_publish_reply(msg_tx: &Sender<Msg>, publish: &Publish) ->
 async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
     let topic = &publish.topic;
 
-    let re =
-        regex::Regex::new(r"^tln/([^/]+)/(onboard|uptime|version|temperature|weather)$").unwrap();
+    let re = regex::Regex::new(
+        r"^tln/([^/]+)/(onboard|app_uptime|host_uptime|version|temperature|weather)$",
+    )
+    .unwrap();
     if let Some(captures) = re.captures(topic) {
         let name = &captures[1];
         let key = &captures[2];
         let payload = std::str::from_utf8(&publish.payload).unwrap();
 
-        let (onboard, uptime, version, temperature, weather) = match key {
+        let (onboard, app_uptime, host_uptime, version, temperature, weather) = match key {
             "onboard" => {
                 let onboard = match payload.parse::<u64>() {
                     Ok(t) => t,
@@ -363,25 +365,41 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     return true;
                 }
 
-                (Some(onboard == 1), None, None, None, None)
+                (Some(onboard == 1), None, None, None, None, None)
             }
-            "uptime" => {
-                let uptime = match payload.parse::<u64>() {
+            "app_uptime" => {
+                let app_uptime = match payload.parse::<u64>() {
                     Ok(t) => t,
                     Err(e) => {
                         log(
                             msg_tx,
                             cfg::name(),
                             Error,
-                            format!("[{NAME}] Error: <- publish::uptime: {name}. Wrong uptime: {payload}: {e:?}."),
+                            format!("[{NAME}] Error: <- publish::app_uptime: {name}. Wrong uptime: {payload}: {e:?}."),
                         )
                         .await;
                         return true;
                     }
                 };
-                (None, Some(uptime), None, None, None)
+                (None, Some(app_uptime), None, None, None, None)
             }
-            "version" => (None, None, Some(payload.to_owned()), None, None),
+            "host_uptime" => {
+                let host_uptime = match payload.parse::<u64>() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log(
+                            msg_tx,
+                            cfg::name(),
+                            Error,
+                            format!("[{NAME}] Error: <- publish::host_uptime: {name}. Wrong uptime: {payload}: {e:?}."),
+                        )
+                        .await;
+                        return true;
+                    }
+                };
+                (None, None, Some(host_uptime), None, None, None)
+            }
+            "version" => (None, None, None, Some(payload.to_owned()), None, None),
             "temperature" => {
                 let temperature = match payload.parse::<f32>() {
                     Ok(t) => t,
@@ -396,9 +414,9 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                         return true;
                     }
                 };
-                (None, None, None, Some(temperature), None)
+                (None, None, None, None, Some(temperature), None)
             }
-            "weather" => (None, None, None, None, Some(payload.to_owned())),
+            "weather" => (None, None, None, None, None, Some(payload.to_owned())),
             _ => {
                 log(
                     msg_tx,
@@ -421,7 +439,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
 
         // update the last seen if onboard is true OR any of uptime, version, temperature, weather is not None
         let last_seen = if (onboard.is_some() && onboard.unwrap())
-            || uptime.is_some()
+            || app_uptime.is_some()
+            || host_uptime.is_some()
             || version.is_some()
             || temperature.is_some()
             || weather.is_some()
@@ -437,7 +456,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 ts: utils::ts(),
                 name: name.to_owned(),
                 onboard,
-                uptime,
+                app_uptime,
+                host_uptime,
                 version,
                 temperature,
                 weather,
