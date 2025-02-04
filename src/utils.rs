@@ -199,3 +199,37 @@ pub fn weather_code_str(code: u8) -> &'static str {
         .map(|&(_, desc)| desc)
         .unwrap_or("未知天氣")
 }
+
+pub async fn get_city_time(city: &str) -> Result<String, String> {
+    let response = match reqwest::Client::new()
+        .get(format!(
+            "http://timeapi.io/api/timezone/zone?timeZone={city}"
+        ))
+        .timeout(tokio::time::Duration::from_secs(5))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            return Err(format!("Failed to get worldtime: {e}"));
+        }
+    };
+
+    let response = match response.text().await {
+        Ok(response) => response,
+        Err(e) => {
+            return Err(format!("Failed to get worldtime: {e}"));
+        }
+    };
+
+    let worldtime: serde_json::Value = serde_json::from_str(&response).unwrap();
+
+    Ok(worldtime["currentLocalTime"].as_str().unwrap().to_owned())
+}
+
+// convert YYYY-MM-DDTHH:MM:SS.ffffff to YYYY/MM/DD HH:MM:SS
+pub fn convert_datetime(datetime: &str) -> Result<String, String> {
+    let datetime = datetime.replace("T", " ").replace("Z", "");
+    let datetime = datetime.split('.').next().unwrap();
+    Ok(datetime.to_owned())
+}

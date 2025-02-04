@@ -3,7 +3,7 @@ use log::Level::{Error, Trace};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{log, City, Data, DevInfo, Msg};
+use crate::msg::{log, City, Data, DevInfo, Msg, Worldtime};
 use crate::panels::panels_main::{self, Popup};
 use crate::utils;
 use crate::{cfg, msg};
@@ -15,7 +15,7 @@ h      - Help
 ⭠ / ⭢  - Change tab
 "#;
 const DEVICES_POLLING: u64 = 60;
-const TABS: usize = 4;
+const TABS: usize = 5;
 
 #[derive(Debug)]
 pub struct Panel {
@@ -27,6 +27,7 @@ pub struct Panel {
     devices: Vec<DevInfo>,
     tab_index: usize,
     weather: Vec<City>,
+    worldtime: Vec<Worldtime>,
 }
 
 impl Panel {
@@ -46,6 +47,7 @@ impl Panel {
             devices: vec![],
             tab_index: 0,
             weather: vec![],
+            worldtime: vec![],
         }
     }
 
@@ -213,6 +215,14 @@ impl Panel {
                     ));
                 }
             }
+            4 => {
+                self.output
+                    .push(format!("{:<12} {:<11}", "City", "Datetime"));
+                for city in &self.worldtime {
+                    self.output
+                        .push(format!("{:<12} {:<11}", city.name, city.datetime));
+                }
+            }
             _ => {}
         }
     }
@@ -267,6 +277,10 @@ impl panels_main::Panel for Panel {
             }
             Data::Weather(weather) => {
                 self.weather = weather.clone();
+                self.tab_refresh();
+            }
+            Data::Worldtime(worldtime) => {
+                self.worldtime = worldtime.clone();
                 self.tab_refresh();
             }
             _ => {

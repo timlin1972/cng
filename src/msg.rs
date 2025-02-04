@@ -12,6 +12,7 @@ pub enum Data {
     DeviceUpdate(DevInfo),
     DeviceCountdown,
     Weather(Vec<City>),
+    Worldtime(Vec<Worldtime>),
     Cmd(Cmd),
 }
 
@@ -43,6 +44,8 @@ pub struct Msg {
 //  update      weather     -               -               -               -       -
 //  get         file        filename        -               -               -       -
 //  stop        file        -               -               -               -       -
+//  worldtime   worldtime     name          datetime        -               -       -
+
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
 pub const ACT_ASK: &str = "ask";
@@ -61,6 +64,7 @@ pub const ACT_TRACE: &str = "trace";
 pub const ACT_WEATHER: &str = "weather";
 pub const ACT_PUT: &str = "put";
 pub const ACT_FILE: &str = "file";
+pub const ACT_WORLDTIME: &str = "worldtime";
 
 #[derive(Debug, Clone)]
 pub struct Cmd {
@@ -96,6 +100,23 @@ pub struct City {
     pub ts: Option<i64>,
     pub temperature: Option<f32>,
     pub code: Option<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Worldtime {
+    pub name: String,
+    pub timezone: String,
+    pub datetime: String,
+}
+
+impl Worldtime {
+    pub fn new(name: String, timezone: String) -> Self {
+        Self {
+            name,
+            timezone,
+            datetime: "n/a".to_owned(),
+        }
+    }
 }
 
 pub async fn file_filename(msg_tx: &Sender<Msg>, reply: String, filename: String, sequence: usize) {
@@ -210,6 +231,17 @@ pub async fn weather(msg_tx: &Sender<Msg>, weather: Vec<City>) {
             ts: utils::ts(),
             plugin: panels_main::NAME.to_owned(),
             data: Data::Weather(weather),
+        })
+        .await
+        .unwrap();
+}
+
+pub async fn worldtime(msg_tx: &Sender<Msg>, worldtime: Vec<Worldtime>) {
+    msg_tx
+        .send(Msg {
+            ts: utils::ts(),
+            plugin: panels_main::NAME.to_owned(),
+            data: Data::Worldtime(worldtime),
         })
         .await
         .unwrap();

@@ -243,6 +243,9 @@ impl Panels {
             Data::Weather(_weather) => {
                 self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
+            Data::Worldtime(_worldtime) => {
+                self.get_panel_mut(panel_infos::NAME).msg(msg).await;
+            }
             _ => {
                 log(
                     &self.msg_tx,
