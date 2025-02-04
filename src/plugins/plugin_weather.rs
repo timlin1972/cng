@@ -188,23 +188,30 @@ impl Plugin {
     }
 
     async fn update(&mut self, cmd: &Cmd) {
-        for city in &mut self.weather {
-            let weather = utils::weather(city.latitude, city.longitude).await;
-            if let Ok(weather) = weather {
-                city.ts = Some(datetime_str_to_ts(&weather.time));
-                city.temperature = Some(weather.temperature);
-                city.code = Some(weather.code);
+        let msg_tx_clone = self.msg_tx.clone();
+        let weather = self.weather.clone();
+        let reply_clone = cmd.reply.clone();
+        tokio::spawn(async move {
+            for city in &weather {
+                let weather = utils::weather(city.latitude, city.longitude).await;
+                if let Ok(weather) = weather {
+                    msg::cmd(
+                        &msg_tx_clone,
+                        cfg::name(),
+                        NAME.to_owned(),
+                        msg::ACT_WEATHER.to_owned(),
+                        vec![
+                            city.name.to_owned(),
+                            weather.time.to_owned(),
+                            weather.temperature.to_string(),
+                            weather.code.to_string(),
+                        ],
+                    )
+                    .await;
+                }
             }
-        }
-
-        msg::weather(&self.msg_tx, self.weather.clone()).await;
-        log(
-            &self.msg_tx,
-            cmd.reply.clone(),
-            Info,
-            format!("[{NAME}] update"),
-        )
-        .await;
+            log(&msg_tx_clone, reply_clone, Info, format!("[{NAME}] update")).await;
+        });
     }
 
     async fn weather(&mut self, cmd: &Cmd) {

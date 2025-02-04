@@ -183,11 +183,11 @@ impl Panel {
             3 => {
                 self.output.push(format!(
                     "{:<12} {:<11} {:7} {:20}",
-                    "City", "Datetime", "Temp", "Weather"
+                    "City", "Update", "Temp", "Weather"
                 ));
                 for city in &self.weather {
-                    // datetime
-                    let datetime = if let Some(t) = city.ts {
+                    // update
+                    let update = if let Some(t) = city.ts {
                         utils::ts_str(t as u64)
                     } else {
                         "n/a".to_owned()
@@ -208,7 +208,7 @@ impl Panel {
                     };
 
                     self.output.push(format!(
-                        "{:<12} {datetime:<11} {temperature:7} {weather:20}",
+                        "{:<12} {update:<11} {temperature:7} {weather:20}",
                         city.name
                     ));
                 }
