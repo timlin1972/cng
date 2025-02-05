@@ -228,6 +228,24 @@ impl Plugin {
 
         msg::weather(&self.msg_tx, self.weather.clone()).await;
     }
+
+    async fn help(&self) {
+        log(
+            &self.msg_tx,
+            cfg::name(),
+            Info,
+            format!(
+                "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_SHOW}, {ACT_WEATHER}, {ACT_UPDATE}",
+                NAME = NAME,
+                ACT_HELP = msg::ACT_HELP,
+                ACT_INIT = msg::ACT_INIT,
+                ACT_SHOW = msg::ACT_SHOW,
+                ACT_WEATHER = msg::ACT_WEATHER,
+                ACT_UPDATE = msg::ACT_UPDATE,
+            ),
+        )
+        .await;
+    }
 }
 
 #[async_trait]
@@ -239,6 +257,7 @@ impl plugins_main::Plugin for Plugin {
     async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
+                msg::ACT_HELP => self.help().await,
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_SHOW => self.show(cmd).await,
                 msg::ACT_WEATHER => self.weather(cmd).await,

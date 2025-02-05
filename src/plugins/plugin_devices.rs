@@ -235,6 +235,22 @@ impl Plugin {
             }
         }
     }
+
+    async fn help(&self, cmd: &Cmd) {
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!(
+                "[{NAME}] {ACT_INIT}, {ACT_HELP}, {ACT_SHOW} [device]",
+                NAME = NAME,
+                ACT_INIT = msg::ACT_INIT,
+                ACT_HELP = msg::ACT_HELP,
+                ACT_SHOW = msg::ACT_SHOW,
+            ),
+        )
+        .await;
+    }
 }
 
 #[async_trait]
@@ -247,6 +263,7 @@ impl plugins_main::Plugin for Plugin {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
                 msg::ACT_INIT => self.init().await,
+                msg::ACT_HELP => self.help(cmd).await,
                 msg::ACT_SHOW => self.show(cmd).await,
                 _ => {
                     log(

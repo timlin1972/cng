@@ -81,6 +81,22 @@ impl Plugin {
         )
         .await;
     }
+
+    async fn help(&self) {
+        log(
+            &self.msg_tx,
+            cfg::name(),
+            Info,
+            format!(
+                "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_PING} <destination>",
+                NAME = NAME,
+                ACT_HELP = msg::ACT_HELP,
+                ACT_INIT = msg::ACT_INIT,
+                ACT_PING = msg::ACT_PING,
+            ),
+        )
+        .await;
+    }
 }
 
 #[async_trait]
@@ -92,6 +108,7 @@ impl plugins_main::Plugin for Plugin {
     async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
+                msg::ACT_HELP => self.help().await,
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_PING => self.ping(cmd).await,
                 _ => {

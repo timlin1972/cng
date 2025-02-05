@@ -94,6 +94,23 @@ impl Plugin {
             }
         }
     }
+
+    async fn help(&self) {
+        log(
+            &self.msg_tx,
+            cfg::name(),
+            Info,
+            format!(
+                "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_SHOW}, {ACT_WAKE} [linds]",
+                NAME = NAME,
+                ACT_HELP = msg::ACT_HELP,
+                ACT_INIT = msg::ACT_INIT,
+                ACT_SHOW = msg::ACT_SHOW,
+                ACT_WAKE = msg::ACT_WAKE,
+            ),
+        )
+        .await;
+    }
 }
 
 #[async_trait]
@@ -105,6 +122,7 @@ impl plugins_main::Plugin for Plugin {
     async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
+                msg::ACT_HELP => self.help().await,
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_SHOW => self.show().await,
                 msg::ACT_WAKE => self.wake(cmd).await,

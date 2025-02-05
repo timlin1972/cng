@@ -7,7 +7,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.1.7";
+const VERSION: &str = "0.1.8";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -237,6 +237,16 @@ impl Plugin {
         )
         .await;
     }
+
+    async fn help(&mut self) {
+        log(
+            &self.msg_tx,
+            cfg::name(),
+            Info,
+            format!("[{NAME}] help: init, show, update, update_item, quit",),
+        )
+        .await;
+    }
 }
 
 #[async_trait]
@@ -249,6 +259,7 @@ impl plugins_main::Plugin for Plugin {
         let mut ret = false;
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
+                msg::ACT_HELP => self.help().await,
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_SHOW => self.show(cmd).await,
                 msg::ACT_UPDATE => self.update(cmd).await,

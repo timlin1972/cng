@@ -65,6 +65,7 @@ pub const ACT_WEATHER: &str = "weather";
 pub const ACT_PUT: &str = "put";
 pub const ACT_FILE: &str = "file";
 pub const ACT_WORLDTIME: &str = "worldtime";
+pub const ACT_HELP: &str = "help";
 
 #[derive(Debug, Clone)]
 pub struct Cmd {

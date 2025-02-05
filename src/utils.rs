@@ -205,7 +205,7 @@ pub async fn get_city_time(city: &str) -> Result<String, String> {
         .get(format!(
             "http://timeapi.io/api/timezone/zone?timeZone={city}"
         ))
-        .timeout(tokio::time::Duration::from_secs(5))
+        .timeout(tokio::time::Duration::from_secs(10))
         .send()
         .await
     {

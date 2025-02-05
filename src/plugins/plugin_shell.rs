@@ -235,6 +235,21 @@ impl Plugin {
         )
         .await;
     }
+
+    async fn help(&self) {
+        log(
+            &self.msg_tx,
+            cfg::name(),
+            Info,
+            "shell: start, cmd, stop, show\n\
+                shell start\n\
+                shell cmd <command>\n\
+                shell stop\n\
+                shell show"
+                .to_owned(),
+        )
+        .await;
+    }
 }
 
 #[async_trait]
@@ -246,6 +261,7 @@ impl plugins_main::Plugin for Plugin {
     async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
+                msg::ACT_HELP => self.help().await,
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_START => self.start(cmd).await,
                 msg::ACT_CMD => self.cmd(cmd).await,

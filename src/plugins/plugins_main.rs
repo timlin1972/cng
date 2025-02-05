@@ -70,11 +70,22 @@ impl Plugins {
         }
     }
 
+    async fn help(&self) {
+        log(
+            &self.msg_tx,
+            cfg::name(),
+            Info,
+            format!("[{NAME}] help: init, show", NAME = NAME,),
+        )
+        .await;
+    }
+
     pub async fn msg(&mut self, msg: &Msg) -> bool {
         let mut ret = false;
         if msg.plugin == NAME {
             match &msg.data {
                 Data::Cmd(cmd) => match cmd.action.as_str() {
+                    msg::ACT_HELP => self.help().await,
                     msg::ACT_SHOW => self.show(cmd).await,
                     _ => {
                         log(

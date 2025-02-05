@@ -286,6 +286,25 @@ impl Plugin {
             }
         }
     }
+
+    async fn help(&self) {
+        log(
+            &self.msg_tx,
+            cfg::name(),
+            Info,
+            format!(
+                "[{NAME}] {ACT_INIT}, {ACT_HELP}, {ACT_PUT} <filename>, {ACT_FILE} <filename>, {ACT_SHOW}, {ACT_STOP}",
+                NAME = NAME,
+                ACT_INIT = msg::ACT_INIT,
+                ACT_HELP = msg::ACT_HELP,
+                ACT_PUT = msg::ACT_PUT,
+                ACT_FILE = msg::ACT_FILE,
+                ACT_SHOW = msg::ACT_SHOW,
+                ACT_STOP = msg::ACT_STOP,
+            ),
+        )
+        .await;
+    }
 }
 
 #[async_trait]
@@ -297,6 +316,7 @@ impl plugins_main::Plugin for Plugin {
     async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
+                msg::ACT_HELP => self.help().await,
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_PUT => self.put(cmd).await,
                 msg::ACT_FILE => self.file(cmd).await,
