@@ -1,4 +1,3 @@
-use log::Level::Info;
 use ratatui::crossterm::event::{self, Event};
 use ratatui::{DefaultTerminal, Frame};
 use tokio::{
@@ -6,27 +5,17 @@ use tokio::{
     task,
 };
 
-use crate::{
-    cfg,
-    msg::{log, Msg},
-    panels::panels_main,
-    plugins::plugins_main,
-    KEY_SIZE, MSG_SIZE,
-};
+use crate::{msg::Msg, panels::panels_main, plugins::plugins_main, KEY_SIZE};
 
 pub struct App {
     panels: panels_main::Panels,
     plugins: plugins_main::Plugins,
-    msg_tx: Sender<Msg>,
     msg_rx: Receiver<Msg>,
     key_rx: Receiver<Event>,
-    cfg_name: String,
 }
 
 impl App {
-    pub fn new() -> Self {
-        let (msg_tx, msg_rx) = mpsc::channel(MSG_SIZE);
-
+    pub fn new(msg_tx: Sender<Msg>, msg_rx: Receiver<Msg>) -> Self {
         // read key
         let (key_tx, key_rx) = mpsc::channel(KEY_SIZE);
         tokio::spawn(async move {
@@ -39,15 +28,11 @@ impl App {
             }
         });
 
-        let cfg_name = cfg::name();
-
         Self {
             panels: panels_main::Panels::new(msg_tx.clone()),
             plugins: plugins_main::Plugins::new(msg_tx.clone()),
-            msg_tx,
             msg_rx,
             key_rx,
-            cfg_name: cfg_name.to_owned(),
         }
     }
 
@@ -55,14 +40,6 @@ impl App {
         mut self,
         mut terminal: DefaultTerminal,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        log(
-            &self.msg_tx,
-            self.cfg_name.to_owned(),
-            Info,
-            format!("Welcome to {}!", self.cfg_name),
-        )
-        .await;
-
         self.panels.init().await;
         self.plugins.init().await;
 

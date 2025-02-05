@@ -1,15 +1,14 @@
 use std::io::Write;
 
-use log::Level::Info;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::{
-    cfg, command,
-    msg::{self, log, Msg},
+    command,
+    msg::{self, Msg},
     panels::panels_main,
     plugins::plugins_main,
-    utils, KEY_SIZE, MSG_SIZE,
+    utils, KEY_SIZE,
 };
 
 fn prompt() -> Result<(), String> {
@@ -26,13 +25,10 @@ pub struct App {
     msg_tx: Sender<Msg>,
     msg_rx: Receiver<Msg>,
     key_rx: Receiver<String>,
-    cfg_name: String,
 }
 
 impl App {
-    pub fn new() -> Self {
-        let (msg_tx, msg_rx) = mpsc::channel(MSG_SIZE);
-
+    pub fn new(msg_tx: Sender<Msg>, msg_rx: Receiver<Msg>) -> Self {
         // read key
         let (key_tx, key_rx) = mpsc::channel(KEY_SIZE);
         tokio::spawn(async move {
@@ -53,26 +49,15 @@ impl App {
             }
         });
 
-        let cfg_name = cfg::name();
-
         Self {
             plugins: plugins_main::Plugins::new(msg_tx.clone()),
             msg_tx,
             msg_rx,
             key_rx,
-            cfg_name: cfg_name.to_owned(),
         }
     }
 
     pub async fn run(mut self) -> Result<(), Box<dyn std::error::Error>> {
-        log(
-            &self.msg_tx,
-            self.cfg_name.to_owned(),
-            Info,
-            format!("Welcome to {}!", self.cfg_name),
-        )
-        .await;
-
         self.plugins.init().await;
 
         loop {
@@ -81,6 +66,12 @@ impl App {
                     if msg.plugin == panels_main::NAME {
                         match &msg.data {
                             msg::Data::Devices(_devices) => {
+                                // do nothing
+                            }
+                            msg::Data::Worldtime(_worldtime) => {
+                                // do nothing
+                            }
+                            msg::Data::Weather(_weather) => {
                                 // do nothing
                             }
                             _ => {
