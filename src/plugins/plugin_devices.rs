@@ -76,6 +76,9 @@ impl Plugin {
             if device.host_uptime.is_some() {
                 d.host_uptime = device.host_uptime;
             }
+            if device.tailscale_ip.is_some() {
+                d.tailscale_ip = device.tailscale_ip.clone();
+            }
             if device.version.is_some() {
                 d.version = device.version.clone();
             }
@@ -93,6 +96,7 @@ impl Plugin {
             if device.onboard.is_some() && !device.onboard.unwrap() {
                 d.app_uptime = None;
                 d.host_uptime = None;
+                d.tailscale_ip = None;
                 d.version = None;
                 d.temperature = None;
                 d.weather = None;
@@ -177,6 +181,16 @@ impl Plugin {
             cmd.reply.clone(),
             Info,
             format!("    Host uptime: {host_uptime}"),
+        )
+        .await;
+
+        // tailscale ip
+        let tailscale_ip = device.tailscale_ip.clone().unwrap_or("n/a".to_owned());
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    Tailscale IP: {tailscale_ip}"),
         )
         .await;
 

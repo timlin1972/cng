@@ -91,6 +91,7 @@ pub struct DevInfo {
     pub temperature: Option<f32>,
     pub weather: Option<String>,
     pub last_seen: Option<u64>,
+    pub tailscale_ip: Option<String>,
 }
 
 #[derive(Debug, Clone)]

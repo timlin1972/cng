@@ -7,7 +7,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.1.8";
+const VERSION: &str = "0.1.9";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -28,6 +28,7 @@ pub struct Plugin {
     temperature: f32,
     weather: String,
     ts_start: u64,
+    tailscale_ip: String,
 }
 
 impl Plugin {
@@ -38,6 +39,7 @@ impl Plugin {
             temperature: 0.0,
             weather: "n/a".to_owned(),
             ts_start: utils::uptime(),
+            tailscale_ip: "n/a".to_owned(),
         }
     }
 
@@ -45,6 +47,17 @@ impl Plugin {
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
             loop {
+                // tailscale ip
+                let tailscale_ip = utils::get_tailscale_ip();
+                msg::cmd(
+                    &msg_tx_clone,
+                    cfg::name(),
+                    NAME.to_owned(),
+                    msg::ACT_UPDATE_ITEM.to_owned(),
+                    vec!["tailscale_ip".to_owned(), tailscale_ip],
+                )
+                .await;
+
                 // weather
                 let weather = utils::device_weather().await;
                 msg::cmd(
@@ -108,6 +121,15 @@ impl Plugin {
         )
         .await;
 
+        // tailscale ip
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("[{NAME}] Tailscale IP: {}", self.tailscale_ip),
+        )
+        .await;
+
         // version
         log(
             &self.msg_tx,
@@ -145,6 +167,9 @@ impl Plugin {
             "temperature" => {
                 let temperature = cmd.data.get(1).unwrap().parse::<f32>().unwrap_or(0.0);
                 self.temperature = temperature;
+            }
+            "tailscale_ip" => {
+                self.tailscale_ip = cmd.data.get(1).unwrap().to_owned();
             }
             _ => {
                 log(
@@ -195,6 +220,20 @@ impl Plugin {
                 "host_uptime".to_owned(),
                 "false".to_owned(),
                 uptime.to_string(),
+            ],
+        )
+        .await;
+
+        // tailscale ip
+        msg::cmd(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            plugin_mqtt::NAME.to_owned(),
+            msg::ACT_PUBLISH.to_owned(),
+            vec![
+                "tailscale_ip".to_owned(),
+                "false".to_owned(),
+                self.tailscale_ip.clone(),
             ],
         )
         .await;

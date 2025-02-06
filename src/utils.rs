@@ -233,3 +233,22 @@ pub fn convert_datetime(datetime: &str) -> Result<String, String> {
     let datetime = datetime.split('.').next().unwrap();
     Ok(datetime.to_owned())
 }
+
+use sysinfo::Networks;
+
+const TAILSCALE_INTERFACE: &str = "tailscale";
+
+pub fn get_tailscale_ip() -> String {
+    let networks = Networks::new_with_refreshed_list();
+    for (interface_name, network) in &networks {
+        if interface_name.starts_with(TAILSCALE_INTERFACE) {
+            for ipnetwork in network.ip_networks().iter() {
+                // if ipv4
+                if ipnetwork.addr.is_ipv4() {
+                    return ipnetwork.addr.to_string();
+                }
+            }
+        }
+    }
+    "n/a".to_string()
+}

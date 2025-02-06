@@ -215,10 +215,10 @@ impl Plugin {
         .await;
     }
 
-    async fn help(&self) {
+    async fn help(&self, cmd: &Cmd) {
         log(
             &self.msg_tx,
-            cfg::name(),
+            cmd.reply.clone(),
             Info,
             format!(
                 "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_SHOW}, {ACT_ASK}, {ACT_REPLY}, {ACT_FILE}, {ACT_PUBLISH}, {ACT_DISCONNECT}",
@@ -234,6 +234,14 @@ impl Plugin {
             ),
         )
         .await;
+
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            "p mqtt ask pi5 p system quit".to_owned(),
+        )
+        .await;
     }
 }
 
@@ -246,7 +254,7 @@ impl plugins_main::Plugin for Plugin {
     async fn msg(&mut self, msg: &Msg) -> bool {
         match &msg.data {
             Data::Cmd(cmd) => match cmd.action.as_str() {
-                msg::ACT_HELP => self.help().await,
+                msg::ACT_HELP => self.help(cmd).await,
                 msg::ACT_INIT => self.init().await,
                 msg::ACT_SHOW => self.show(cmd).await,
                 msg::ACT_ASK => self.ask(cmd).await,

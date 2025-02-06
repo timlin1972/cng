@@ -107,8 +107,8 @@ impl Panel {
             }
             1 => {
                 self.output.push(format!(
-                    "{:<12} {:<7} {:13} {:13}",
-                    "Name", "Onboard", "App uptime", "Host uptime"
+                    "{:<12} {:<7} {:13} {:13} {:16}",
+                    "Name", "Onboard", "App uptime", "Host uptime", "Tailscale IP"
                 ));
                 for device in self.devices.iter() {
                     // onboard
@@ -137,8 +137,9 @@ impl Panel {
                     };
 
                     self.output.push(format!(
-                        "{:<12} {onboard:<7} {app_uptime:13} {host_uptime:13}",
+                        "{:<12} {onboard:<7} {app_uptime:13} {host_uptime:13} {:16}",
                         device.name,
+                        device.tailscale_ip.clone().unwrap_or("n/a".to_owned())
                     ));
                 }
             }
