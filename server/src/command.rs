@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, Msg};
+use crate::msg::{self, Msg, Reply};
 
 pub const UNKNOWN_COMMAND: &str = "Unknown command. Input 'h' for help.";
 pub const HELP_TEXT: &str = r#"Commands:
@@ -80,7 +80,7 @@ pub async fn run(msg_tx: &Sender<Msg>, cmd: &str) -> bool {
             action,
             data,
         }) => {
-            msg::cmd(msg_tx, cfg::name(), plugin, action, data).await;
+            msg::cmd(msg_tx, Reply::Device(cfg::name()), plugin, action, data).await;
         }
 
         None => {

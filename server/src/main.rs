@@ -11,7 +11,7 @@ mod plugins;
 mod utils;
 mod web;
 
-use msg::log;
+use msg::{log, Reply};
 
 const MSG_SIZE: usize = 4096;
 pub const KEY_SIZE: usize = 32;
@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log(
         &msg_tx,
-        cfg::name(),
+        Reply::Device(cfg::name()),
         Info,
         format!("Welcome to {}!", cfg::name()),
     )

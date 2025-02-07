@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{self, log, Cmd, Data, Msg, Worldtime};
+use crate::msg::{self, log, Cmd, Data, Msg, Reply, Worldtime};
 use crate::plugins::plugins_main;
 use crate::{cfg, utils};
 
@@ -41,7 +41,7 @@ impl Plugin {
                     if let Ok(datetime) = datetime {
                         msg::cmd(
                             &msg_tx_clone,
-                            cfg::name(),
+                            Reply::Device(cfg::name()),
                             NAME.to_owned(),
                             msg::ACT_WORLDTIME.to_owned(),
                             vec![
@@ -53,7 +53,7 @@ impl Plugin {
                     } else {
                         msg::cmd(
                             &msg_tx_clone,
-                            cfg::name(),
+                            Reply::Device(cfg::name()),
                             NAME.to_owned(),
                             msg::ACT_WORLDTIME.to_owned(),
                             vec![city.name.clone(), "n/a".to_owned()],
@@ -66,7 +66,13 @@ impl Plugin {
             }
         });
 
-        log(&self.msg_tx, cfg::name(), Info, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Info,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     async fn update(&mut self, cmd: &Cmd) {
@@ -79,7 +85,7 @@ impl Plugin {
                 if let Ok(datetime) = datetime {
                     msg::cmd(
                         &msg_tx_clone,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         NAME.to_owned(),
                         msg::ACT_WORLDTIME.to_owned(),
                         vec![
@@ -91,7 +97,7 @@ impl Plugin {
                 } else {
                     msg::cmd(
                         &msg_tx_clone,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         NAME.to_owned(),
                         msg::ACT_WORLDTIME.to_owned(),
                         vec![city.name.clone(), "n/a".to_owned()],
@@ -131,7 +137,7 @@ impl Plugin {
     async fn help(&self) {
         log(
             &self.msg_tx,
-            cfg::name(),
+            Reply::Device(cfg::name()),
             Info,
             format!(
                 "[{NAME}] {ACT_INIT}, {ACT_HELP}, {ACT_SHOW}, {ACT_UPDATE}, {ACT_WORLDTIME}",
@@ -164,7 +170,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -174,7 +180,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

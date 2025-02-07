@@ -11,7 +11,7 @@ use ratatui::{
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{log, Data, Msg};
+use crate::msg::{log, Data, Msg, Reply};
 use crate::panels::{panel_brief, panel_error, panel_infos, panel_log};
 
 pub const NAME: &str = "panels";
@@ -67,7 +67,13 @@ impl Panels {
     }
 
     pub async fn init(&mut self) {
-        log(&self.msg_tx, cfg::name(), Info, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Info,
+            format!("[{NAME}] init"),
+        )
+        .await;
         for panel in &mut self.panels {
             panel.init().await;
         }
@@ -249,7 +255,7 @@ impl Panels {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

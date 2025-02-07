@@ -5,7 +5,7 @@ use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, log, Cmd, Data, Msg};
+use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
 
 pub const NAME: &str = "ping";
@@ -25,7 +25,13 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     async fn ping(&mut self, cmd: &Cmd) {
@@ -85,7 +91,7 @@ impl Plugin {
     async fn help(&self) {
         log(
             &self.msg_tx,
-            cfg::name(),
+            Reply::Device(cfg::name()),
             Info,
             format!(
                 "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_PING} <destination>",
@@ -124,7 +130,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

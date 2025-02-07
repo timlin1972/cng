@@ -3,7 +3,7 @@ use log::Level::{Error, Trace};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{log, City, Data, DevInfo, Msg, Worldtime};
+use crate::msg::{log, City, Data, DevInfo, Msg, Reply, Worldtime};
 use crate::panels::panels_main::{self, Popup};
 use crate::utils;
 use crate::{cfg, msg};
@@ -240,7 +240,13 @@ impl panels_main::Panel for Panel {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
 
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
@@ -287,7 +293,7 @@ impl panels_main::Panel for Panel {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

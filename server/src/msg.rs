@@ -44,7 +44,8 @@ pub struct Msg {
 //  update      weather     -               -               -               -       -
 //  get         file        filename        -               -               -       -
 //  stop        file        -               -               -               -       -
-//  worldtime   worldtime     name          datetime        -               -       -
+//  worldtime   worldtime   name            datetime        -               -       -
+//  add         todos       title           desc            priority        -       -
 
 pub const ACT_SHOW: &str = "show";
 pub const ACT_INIT: &str = "init";
@@ -66,10 +67,17 @@ pub const ACT_PUT: &str = "put";
 pub const ACT_FILE: &str = "file";
 pub const ACT_WORLDTIME: &str = "worldtime";
 pub const ACT_HELP: &str = "help";
+pub const ACT_ADD: &str = "add";
+
+#[derive(Debug, Clone)]
+pub enum Reply {
+    Device(String),
+    Web(Sender<Vec<String>>),
+}
 
 #[derive(Debug, Clone)]
 pub struct Cmd {
-    pub reply: String,
+    pub reply: Reply,
     pub action: String,
     pub data: Vec<String>,
 }
@@ -121,7 +129,7 @@ impl Worldtime {
     }
 }
 
-pub async fn file_filename(msg_tx: &Sender<Msg>, reply: String, filename: String, sequence: usize) {
+pub async fn file_filename(msg_tx: &Sender<Msg>, reply: Reply, filename: String, sequence: usize) {
     msg_tx
         .send(Msg {
             ts: utils::ts(),
@@ -136,7 +144,7 @@ pub async fn file_filename(msg_tx: &Sender<Msg>, reply: String, filename: String
         .unwrap();
 }
 
-pub async fn file_content(msg_tx: &Sender<Msg>, reply: String, sequence: usize, content: &[u8]) {
+pub async fn file_content(msg_tx: &Sender<Msg>, reply: Reply, sequence: usize, content: &[u8]) {
     let content = ascii85::encode(content);
 
     msg_tx
@@ -153,7 +161,7 @@ pub async fn file_content(msg_tx: &Sender<Msg>, reply: String, sequence: usize, 
         .unwrap();
 }
 
-pub async fn file_end(msg_tx: &Sender<Msg>, reply: String, sequence: usize) {
+pub async fn file_end(msg_tx: &Sender<Msg>, reply: Reply, sequence: usize) {
     msg_tx
         .send(Msg {
             ts: utils::ts(),
@@ -168,29 +176,46 @@ pub async fn file_end(msg_tx: &Sender<Msg>, reply: String, sequence: usize) {
         .unwrap();
 }
 
-pub async fn log(msg_tx: &Sender<Msg>, reply: String, level: log::Level, msg: String) {
-    if reply == cfg::name() {
-        msg_tx
-            .send(Msg {
-                ts: utils::ts(),
-                plugin: plugin_log::NAME.to_owned(),
-                data: Data::Log(Log { level, msg }),
-            })
-            .await
-            .unwrap();
-    } else {
-        msg_tx
-            .send(Msg {
-                ts: utils::ts(),
-                plugin: plugin_mqtt::NAME.to_owned(),
-                data: Data::Cmd(Cmd {
-                    reply,
-                    action: ACT_REPLY.to_owned(),
-                    data: vec![level.to_string(), msg],
-                }),
-            })
-            .await
-            .unwrap();
+pub async fn log_done(reply: Reply) {
+    if let Reply::Web(sender) = reply {
+        if let Err(e) = sender.send(vec![]).await {
+            eprintln!("Failed to send response: {:?}", e);
+        }
+    }
+}
+
+pub async fn log(msg_tx: &Sender<Msg>, reply: Reply, level: log::Level, msg: String) {
+    match reply {
+        Reply::Device(device) => {
+            if device == cfg::name() {
+                msg_tx
+                    .send(Msg {
+                        ts: utils::ts(),
+                        plugin: plugin_log::NAME.to_owned(),
+                        data: Data::Log(Log { level, msg }),
+                    })
+                    .await
+                    .unwrap();
+            } else {
+                msg_tx
+                    .send(Msg {
+                        ts: utils::ts(),
+                        plugin: plugin_mqtt::NAME.to_owned(),
+                        data: Data::Cmd(Cmd {
+                            reply: Reply::Device(device),
+                            action: ACT_REPLY.to_owned(),
+                            data: vec![level.to_string(), msg],
+                        }),
+                    })
+                    .await
+                    .unwrap();
+            }
+        }
+        Reply::Web(sender) => {
+            if let Err(e) = sender.send(vec![level.to_string(), msg]).await {
+                eprintln!("Failed to send response: {:?}", e);
+            }
+        }
     }
 }
 
@@ -252,7 +277,7 @@ pub async fn worldtime(msg_tx: &Sender<Msg>, worldtime: Vec<Worldtime>) {
 #[allow(clippy::too_many_arguments)]
 pub async fn cmd(
     msg_tx: &Sender<Msg>,
-    reply: String,
+    reply: Reply,
     plugin: String,
     action: String,
     data: Vec<String>,

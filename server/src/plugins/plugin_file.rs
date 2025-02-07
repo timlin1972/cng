@@ -7,7 +7,7 @@ use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, log, Cmd, Data, Msg};
+use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
 
 pub const NAME: &str = "file";
@@ -37,7 +37,7 @@ impl Plugin {
             fs::create_dir(FILE_FOLDER).unwrap();
             log(
                 &self.msg_tx,
-                cfg::name(),
+                Reply::Device(cfg::name()),
                 Info,
                 format!("[{NAME}] Folder '{FILE_FOLDER}' is created."),
             )
@@ -45,14 +45,20 @@ impl Plugin {
         } else {
             log(
                 &self.msg_tx,
-                cfg::name(),
+                Reply::Device(cfg::name()),
                 Info,
                 format!("[{NAME}] Folder '{FILE_FOLDER}' is existed."),
             )
             .await;
         }
 
-        log(&self.msg_tx, cfg::name(), Info, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Info,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     async fn show(&mut self, cmd: &Cmd) {
@@ -100,15 +106,17 @@ impl Plugin {
     }
 
     async fn put(&mut self, cmd: &Cmd) {
-        if cmd.reply == cfg::name() {
-            log(
-                &self.msg_tx,
-                cfg::name(),
-                Error,
-                format!("[{NAME}] put is not for local use."),
-            )
-            .await;
-            return;
+        if let Reply::Device(device) = &cmd.reply {
+            if *device == cfg::name() {
+                log(
+                    &self.msg_tx,
+                    Reply::Device(cfg::name()),
+                    Error,
+                    format!("[{NAME}] put is not for local use."),
+                )
+                .await;
+                return;
+            }
         }
 
         let path = format!("{FILE_FOLDER}/{}", cmd.data[0]);
@@ -224,7 +232,7 @@ impl Plugin {
 
                     log(
                         &self.msg_tx,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         Info,
                         format!("[{NAME}] file: content: {:?}", sequence),
                     )
@@ -268,7 +276,7 @@ impl Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         Error,
                         format!("[{NAME}] file: invalid data: {:?}", data),
                     )
@@ -278,7 +286,7 @@ impl Plugin {
             None => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] file: no data"),
                 )
@@ -290,7 +298,7 @@ impl Plugin {
     async fn help(&self) {
         log(
             &self.msg_tx,
-            cfg::name(),
+            Reply::Device(cfg::name()),
             Info,
             format!(
                 "[{NAME}] {ACT_INIT}, {ACT_HELP}, {ACT_PUT} <filename>, {ACT_FILE} <filename>, {ACT_SHOW}, {ACT_STOP}",
@@ -325,7 +333,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -335,7 +343,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

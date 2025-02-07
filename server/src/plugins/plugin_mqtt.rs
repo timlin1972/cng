@@ -4,7 +4,7 @@ use rumqttc::{AsyncClient, LastWill, MqttOptions, QoS};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, log, Cmd, Data, Msg};
+use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::{mqtt, plugins_main};
 use crate::utils;
 
@@ -29,11 +29,17 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
 
         log(
             &self.msg_tx,
-            cfg::name(),
+            Reply::Device(cfg::name()),
             Trace,
             format!("[{NAME}] Connecting to MQTT broker"),
         )
@@ -60,7 +66,7 @@ impl Plugin {
         tokio::spawn(async move {
             log(
                 &msg_tx_clone,
-                cfg::name(),
+                Reply::Device(cfg::name()),
                 Trace,
                 format!("[{NAME}] Start to receive mqtt message."),
             )
@@ -71,7 +77,7 @@ impl Plugin {
             }
             log(
                 &msg_tx_clone,
-                cfg::name(),
+                Reply::Device(cfg::name()),
                 Error,
                 format!("[{NAME}] Receive mqtt message stopped."),
             )
@@ -80,7 +86,7 @@ impl Plugin {
             // disconnect
             msg::cmd(
                 &msg_tx_clone,
-                cfg::name(),
+                Reply::Device(cfg::name()),
                 NAME.to_owned(),
                 msg::ACT_DISCONNECT.to_owned(),
                 vec![],
@@ -143,14 +149,16 @@ impl Plugin {
 
         let enc_msg = utils::encrypt(&cfg::key(), msg).unwrap();
 
-        mqtt::utils::publish(
-            &self.msg_tx,
-            self.client.as_ref(),
-            &format!("tln/{}/{}", cmd.reply, msg::ACT_REPLY),
-            false,
-            &enc_msg,
-        )
-        .await;
+        if let Reply::Device(device) = &cmd.reply {
+            mqtt::utils::publish(
+                &self.msg_tx,
+                self.client.as_ref(),
+                &format!("tln/{}/{}", device, msg::ACT_REPLY),
+                false,
+                &enc_msg,
+            )
+            .await;
+        }
     }
 
     async fn ask(&mut self, cmd: &Cmd) {
@@ -205,14 +213,16 @@ impl Plugin {
 
         let enc_msg = utils::encrypt(&cfg::key(), msg).unwrap();
 
-        mqtt::utils::publish(
-            &self.msg_tx,
-            self.client.as_ref(),
-            &format!("tln/{}/file", cmd.reply),
-            false,
-            &enc_msg,
-        )
-        .await;
+        if let Reply::Device(device) = &cmd.reply {
+            mqtt::utils::publish(
+                &self.msg_tx,
+                self.client.as_ref(),
+                &format!("tln/{}/file", device),
+                false,
+                &enc_msg,
+            )
+            .await;
+        }
     }
 
     async fn help(&self, cmd: &Cmd) {
@@ -277,7 +287,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         Error,
                         format!("[{NAME}] unknown action: {:?}.", cmd.action),
                     )
@@ -287,7 +297,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}."),
                 )

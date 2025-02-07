@@ -1,3 +1,4 @@
+pub mod mongodb;
 pub mod mqtt;
 pub mod plugin_devices;
 pub mod plugin_file;
@@ -6,6 +7,7 @@ pub mod plugin_mqtt;
 pub mod plugin_ping;
 pub mod plugin_shell;
 pub mod plugin_system;
+pub mod plugin_todos;
 pub mod plugin_weather;
 pub mod plugin_wol;
 pub mod plugin_worldtime;

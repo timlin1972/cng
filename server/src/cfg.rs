@@ -48,6 +48,7 @@ pub struct Cfg {
     mode: String,
     #[serde(default = "default_trace")]
     trace: u8,
+    db: String,
 }
 
 impl Cfg {
@@ -61,6 +62,7 @@ impl Cfg {
                 shell: SHELL.to_owned(),
                 mode: MODE_CLI.to_owned(),
                 trace: TRACE,
+                db: "mongodb://localhost:27017".to_owned(),
             }
         } else {
             let file_content = fs::read_to_string(CFG_FILE).unwrap();
@@ -122,4 +124,9 @@ pub fn mode() -> String {
 pub fn trace() -> u8 {
     let cfg = Cfg::get_instance();
     cfg.trace()
+}
+
+pub fn db() -> String {
+    let cfg = Cfg::get_instance();
+    cfg.db.to_owned()
 }

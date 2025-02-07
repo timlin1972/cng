@@ -3,7 +3,7 @@ use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, devices, log, Cmd, Data, DevInfo, Msg};
+use crate::msg::{self, devices, log, Cmd, Data, DevInfo, Msg, Reply};
 use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::utils;
 
@@ -29,7 +29,7 @@ impl Plugin {
         async fn ask_device_update(msg_tx: &Sender<Msg>, device_name: &str) {
             msg::cmd(
                 msg_tx,
-                cfg::name(),
+                Reply::Device(cfg::name()),
                 plugin_mqtt::NAME.to_owned(),
                 msg::ACT_ASK.to_owned(),
                 vec![
@@ -48,7 +48,7 @@ impl Plugin {
             if device.onboard.is_some() && (device.onboard != d.onboard) {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Info,
                     format!(
                         "[{NAME}] device '{}' {} at {}",
@@ -107,7 +107,7 @@ impl Plugin {
             if device.onboard.is_some() {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Info,
                     format!(
                         "[{NAME}] device '{}' {} at {}",
@@ -131,7 +131,13 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     async fn show_device(&self, cmd: &Cmd, device: &DevInfo) {
@@ -295,7 +301,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

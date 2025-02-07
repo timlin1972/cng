@@ -4,7 +4,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{log, Data, Msg};
+use crate::msg::{log, Data, Msg, Reply};
 use crate::panels::panels_main::{self, Popup};
 use crate::utils;
 
@@ -49,7 +49,13 @@ impl panels_main::Panel for Panel {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     fn input(&self) -> &str {
@@ -76,7 +82,7 @@ impl panels_main::Panel for Panel {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

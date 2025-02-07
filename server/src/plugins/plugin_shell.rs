@@ -7,7 +7,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, log, Cmd, Data, Msg};
+use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
 
 pub const NAME: &str = "shell";
@@ -43,7 +43,13 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     async fn stdout_task(&mut self, child: &mut Child, cmd: &Cmd) {
@@ -239,7 +245,7 @@ impl Plugin {
     async fn help(&self) {
         log(
             &self.msg_tx,
-            cfg::name(),
+            Reply::Device(cfg::name()),
             Info,
             "shell: start, cmd, stop, show\n\
                 shell start\n\
@@ -270,7 +276,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -280,7 +286,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

@@ -4,7 +4,7 @@ use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
-use crate::msg::{self, log, City, Cmd, Data, Msg};
+use crate::msg::{self, log, City, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
 use crate::utils;
 
@@ -118,7 +118,7 @@ impl Plugin {
                     if let Ok(weather) = weather {
                         msg::cmd(
                             &msg_tx_clone,
-                            cfg::name(),
+                            Reply::Device(cfg::name()),
                             NAME.to_owned(),
                             msg::ACT_WEATHER.to_owned(),
                             vec![
@@ -136,7 +136,13 @@ impl Plugin {
             }
         });
 
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     async fn show(&mut self, cmd: &Cmd) {
@@ -197,7 +203,7 @@ impl Plugin {
                 if let Ok(weather) = weather {
                     msg::cmd(
                         &msg_tx_clone,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         NAME.to_owned(),
                         msg::ACT_WEATHER.to_owned(),
                         vec![
@@ -232,7 +238,7 @@ impl Plugin {
     async fn help(&self) {
         log(
             &self.msg_tx,
-            cfg::name(),
+            Reply::Device(cfg::name()),
             Info,
             format!(
                 "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_SHOW}, {ACT_WEATHER}, {ACT_UPDATE}",
@@ -265,7 +271,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -275,7 +281,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )

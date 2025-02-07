@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
-use crate::msg::{self, log, Cmd, Data, Msg};
+use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.2.0";
+const VERSION: &str = "0.2.1";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -51,7 +51,7 @@ impl Plugin {
                 let tailscale_ip = utils::get_tailscale_ip();
                 msg::cmd(
                     &msg_tx_clone,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     NAME.to_owned(),
                     msg::ACT_UPDATE_ITEM.to_owned(),
                     vec!["tailscale_ip".to_owned(), tailscale_ip],
@@ -62,7 +62,7 @@ impl Plugin {
                 let weather = utils::device_weather().await;
                 msg::cmd(
                     &msg_tx_clone,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     NAME.to_owned(),
                     msg::ACT_UPDATE_ITEM.to_owned(),
                     vec!["weather".to_owned(), weather],
@@ -73,7 +73,7 @@ impl Plugin {
                 let temperature = get_temperature();
                 msg::cmd(
                     &msg_tx_clone,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     NAME.to_owned(),
                     msg::ACT_UPDATE_ITEM.to_owned(),
                     vec!["temperature".to_owned(), temperature.to_string()],
@@ -82,7 +82,7 @@ impl Plugin {
 
                 msg::cmd(
                     &msg_tx_clone,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     NAME.to_owned(),
                     msg::ACT_UPDATE.to_owned(),
                     vec![],
@@ -93,7 +93,13 @@ impl Plugin {
             }
         });
 
-        log(&self.msg_tx, cfg::name(), Trace, format!("[{NAME}] init")).await;
+        log(
+            &self.msg_tx,
+            Reply::Device(cfg::name()),
+            Trace,
+            format!("[{NAME}] init"),
+        )
+        .await;
     }
 
     async fn show(&mut self, cmd: &Cmd) {
@@ -174,7 +180,7 @@ impl Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown item: {:?}", cmd.data.first().unwrap()),
                 )
@@ -280,7 +286,7 @@ impl Plugin {
     async fn help(&mut self) {
         log(
             &self.msg_tx,
-            cfg::name(),
+            Reply::Device(cfg::name()),
             Info,
             format!("[{NAME}] help: init, show, update, update_item, quit",),
         )
@@ -309,7 +315,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => {
                     log(
                         &self.msg_tx,
-                        cfg::name(),
+                        Reply::Device(cfg::name()),
                         Error,
                         format!("[{NAME}] unknown action: {:?}", cmd.action),
                     )
@@ -319,7 +325,7 @@ impl plugins_main::Plugin for Plugin {
             _ => {
                 log(
                     &self.msg_tx,
-                    cfg::name(),
+                    Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
                 )
