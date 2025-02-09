@@ -146,50 +146,60 @@ impl Plugin {
     }
 
     async fn show(&mut self, cmd: &Cmd) {
-        for city in &self.weather {
-            log(
-                &self.msg_tx,
-                cmd.reply.clone(),
-                Info,
-                format!("[{NAME}] {}:", city.name),
-            )
-            .await;
+        match &cmd.reply {
+            Reply::Device(_) => {
+                for city in &self.weather {
+                    log(
+                        &self.msg_tx,
+                        cmd.reply.clone(),
+                        Info,
+                        format!("[{NAME}] {}:", city.name),
+                    )
+                    .await;
 
-            let datetime = match city.ts {
-                None => "n/a".to_owned(),
-                Some(t) => utils::ts_str(t as u64),
-            };
-            log(
-                &self.msg_tx,
-                cmd.reply.clone(),
-                Info,
-                format!("[{NAME}]     Datetime: {datetime}"),
-            )
-            .await;
+                    let datetime = match city.ts {
+                        None => "n/a".to_owned(),
+                        Some(t) => utils::ts_str(t as u64),
+                    };
+                    log(
+                        &self.msg_tx,
+                        cmd.reply.clone(),
+                        Info,
+                        format!("[{NAME}]     Datetime: {datetime}"),
+                    )
+                    .await;
 
-            let temperature = match city.temperature {
-                None => "n/a".to_owned(),
-                Some(t) => t.to_string(),
-            };
-            log(
-                &self.msg_tx,
-                cmd.reply.clone(),
-                Info,
-                format!("[{NAME}]     Temperature: {temperature}°C"),
-            )
-            .await;
+                    let temperature = match city.temperature {
+                        None => "n/a".to_owned(),
+                        Some(t) => t.to_string(),
+                    };
+                    log(
+                        &self.msg_tx,
+                        cmd.reply.clone(),
+                        Info,
+                        format!("[{NAME}]     Temperature: {temperature}°C"),
+                    )
+                    .await;
 
-            let code = match city.code {
-                None => "n/a".to_owned(),
-                Some(c) => utils::weather_code_str(c).to_owned(),
-            };
-            log(
-                &self.msg_tx,
-                cmd.reply.clone(),
-                Info,
-                format!("[{NAME}]     Weather: {code}"),
-            )
-            .await;
+                    let code = match city.code {
+                        None => "n/a".to_owned(),
+                        Some(c) => utils::weather_code_str(c).to_owned(),
+                    };
+                    log(
+                        &self.msg_tx,
+                        cmd.reply.clone(),
+                        Info,
+                        format!("[{NAME}]     Weather: {code}"),
+                    )
+                    .await;
+                }
+            }
+            Reply::Web(sender) => {
+                sender
+                    .send(serde_json::to_value(self.weather.clone()).unwrap())
+                    .await
+                    .unwrap();
+            }
         }
     }
 

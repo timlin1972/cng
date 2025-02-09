@@ -4,38 +4,8 @@ import AcmeLogo from "@/app/ui/acme-logo";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { lusitana } from "@/app/ui/fonts";
-// import { useState, useEffect } from "react";
 
 export default function Page() {
-  // const [data, setData] = useState<any>(null);
-  // const [loading, setLoading] = useState(true);
-  // const [error, setError] = useState<string | null>(null);
-
-  // useEffect(() => {
-  //   // 定義一個 async function 用來 fetch 資料
-  //   async function fetchData() {
-  //     try {
-  //       const response = await fetch("/hey"); // 發送 GET 請求到 /api/data
-  //       if (!response.ok) {
-  //         throw new Error(`HTTP error! Status: ${response.status}`);
-  //       }
-  //       const jsonData = await response.json();
-  //       setData(jsonData);
-  //     } catch (err: any) {
-  //       setError(err.message || "Something went wrong");
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   }
-
-  //   fetchData();
-  // }, []);
-
-  // if (loading) return <p>Loading data...</p>;
-  // if (error) return <p>Error: {error}</p>;
-
-  // console.log("data:", data);
-
   return (
     <main className="flex min-h-screen flex-col p-6">
       <div className="flex h-20 shrink-0 items-end rounded-lg bg-blue-500 p-4 md:h-52">

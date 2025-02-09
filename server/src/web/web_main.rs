@@ -9,7 +9,6 @@ const API_V1_CMD: &str = "/api/v1/cmd";
 use crate::{
     cfg,
     msg::{self, log, Msg, Reply},
-    plugins::plugin_todos,
 };
 
 const NAME: &str = "web";
@@ -21,7 +20,7 @@ struct Cmd {
 }
 
 async fn cmd(req_body: String, sender: web::Data<Sender<Msg>>) -> impl Responder {
-    let (resp_tx, resp_rx) = mpsc::channel::<Vec<String>>(100);
+    let (resp_tx, mut resp_rx) = mpsc::channel::<serde_json::Value>(100);
 
     let cmd: Cmd = serde_json::from_str(&req_body).unwrap();
     let cmd_args: Vec<&str> = cmd.cmd.split_whitespace().collect();
@@ -47,15 +46,8 @@ async fn cmd(req_body: String, sender: web::Data<Sender<Msg>>) -> impl Responder
     )
     .await;
 
-    let responses = match plugin {
-        "todos" => match action {
-            "show" => Some(plugin_todos::show(resp_rx).await),
-            _ => None,
-        },
-        _ => None,
-    };
-
-    HttpResponse::Ok().json(responses.unwrap())
+    let response = resp_rx.recv().await.unwrap();
+    HttpResponse::Ok().json(response)
 }
 
 pub async fn run(msg_tx: Sender<Msg>) -> Result<(), Box<dyn std::error::Error>> {

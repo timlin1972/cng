@@ -245,13 +245,23 @@ impl Plugin {
     }
 
     async fn show(&mut self, cmd: &Cmd) {
-        for device in &self.devices {
-            if let Some(t) = &cmd.data.first() {
-                if *t == &device.name {
-                    self.show_device(cmd, device).await;
+        match &cmd.reply {
+            Reply::Device(_) => {
+                for device in &self.devices {
+                    if let Some(t) = &cmd.data.first() {
+                        if *t == &device.name {
+                            self.show_device(cmd, device).await;
+                        }
+                    } else {
+                        self.show_device(cmd, device).await;
+                    }
                 }
-            } else {
-                self.show_device(cmd, device).await;
+            }
+            Reply::Web(sender) => {
+                sender
+                    .send(serde_json::to_value(self.devices.clone()).unwrap())
+                    .await
+                    .unwrap();
             }
         }
     }

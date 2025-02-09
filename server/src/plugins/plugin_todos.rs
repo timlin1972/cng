@@ -6,12 +6,12 @@ use mongodb::{
     Client,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Sender;
 
+use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::mongodb::utils;
 use crate::plugins::plugins_main;
-use crate::{cfg, msg::log_done};
 
 pub const NAME: &str = "todos";
 
@@ -94,58 +94,65 @@ impl Plugin {
         let mut cursor = collection.find(filter).await.unwrap();
         while let Some(result) = cursor.next().await {
             match result {
-                Ok(document) => {
-                    log(
-                        &self.msg_tx,
-                        cmd.reply.clone(),
-                        Info,
-                        format!("[{}]", document.title),
-                    )
-                    .await;
-                    log(
-                        &self.msg_tx,
-                        cmd.reply.clone(),
-                        Info,
-                        format!("    desc: {}", document.desc),
-                    )
-                    .await;
-                    log(
-                        &self.msg_tx,
-                        cmd.reply.clone(),
-                        Info,
-                        format!("    completed: {}", document.completed),
-                    )
-                    .await;
-                    log(
-                        &self.msg_tx,
-                        cmd.reply.clone(),
-                        Info,
-                        format!("    priority: {}", document.priority),
-                    )
-                    .await;
-                    log(
-                        &self.msg_tx,
-                        cmd.reply.clone(),
-                        Info,
-                        format!("    due: {}", document.due),
-                    )
-                    .await;
-                    log(
-                        &self.msg_tx,
-                        cmd.reply.clone(),
-                        Info,
-                        format!("    created: {}", document.created),
-                    )
-                    .await;
-                    log(
-                        &self.msg_tx,
-                        cmd.reply.clone(),
-                        Info,
-                        format!("    updated: {}", document.updated),
-                    )
-                    .await;
-                    log_done(cmd.reply.clone()).await;
-                }
+                Ok(document) => match &cmd.reply {
+                    Reply::Device(_) => {
+                        log(
+                            &self.msg_tx,
+                            cmd.reply.clone(),
+                            Info,
+                            format!("[{}]", document.title),
+                        )
+                        .await;
+                        log(
+                            &self.msg_tx,
+                            cmd.reply.clone(),
+                            Info,
+                            format!("    desc: {}", document.desc),
+                        )
+                        .await;
+                        log(
+                            &self.msg_tx,
+                            cmd.reply.clone(),
+                            Info,
+                            format!("    completed: {}", document.completed),
+                        )
+                        .await;
+                        log(
+                            &self.msg_tx,
+                            cmd.reply.clone(),
+                            Info,
+                            format!("    priority: {}", document.priority),
+                        )
+                        .await;
+                        log(
+                            &self.msg_tx,
+                            cmd.reply.clone(),
+                            Info,
+                            format!("    due: {}", document.due),
+                        )
+                        .await;
+                        log(
+                            &self.msg_tx,
+                            cmd.reply.clone(),
+                            Info,
+                            format!("    created: {}", document.created),
+                        )
+                        .await;
+                        log(
+                            &self.msg_tx,
+                            cmd.reply.clone(),
+                            Info,
+                            format!("    updated: {}", document.updated),
+                        )
+                        .await;
+                    }
+                    Reply::Web(sender) => {
+                        sender
+                            .send(serde_json::to_value(document).unwrap())
+                            .await
+                            .unwrap();
+                    }
+                },
                 Err(e) => {
                     log(
                         &self.msg_tx,
@@ -228,16 +235,4 @@ impl plugins_main::Plugin for Plugin {
 
         false
     }
-}
-
-pub async fn show(mut resp_rx: Receiver<Vec<String>>) -> serde_json::Value {
-    let mut responses = Vec::new();
-    while let Some(response) = resp_rx.recv().await {
-        if response.is_empty() {
-            break;
-        }
-        responses.push(response);
-    }
-
-    serde_json::json!(responses)
 }

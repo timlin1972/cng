@@ -1,3 +1,4 @@
+use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
@@ -72,7 +73,7 @@ pub const ACT_ADD: &str = "add";
 #[derive(Debug, Clone)]
 pub enum Reply {
     Device(String),
-    Web(Sender<Vec<String>>),
+    Web(Sender<serde_json::Value>),
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +89,7 @@ pub struct Log {
     pub msg: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DevInfo {
     pub ts: u64,
     pub name: String,
@@ -102,7 +103,7 @@ pub struct DevInfo {
     pub tailscale_ip: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct City {
     pub name: String,
     pub latitude: f32,
@@ -176,14 +177,6 @@ pub async fn file_end(msg_tx: &Sender<Msg>, reply: Reply, sequence: usize) {
         .unwrap();
 }
 
-pub async fn log_done(reply: Reply) {
-    if let Reply::Web(sender) = reply {
-        if let Err(e) = sender.send(vec![]).await {
-            eprintln!("Failed to send response: {:?}", e);
-        }
-    }
-}
-
 pub async fn log(msg_tx: &Sender<Msg>, reply: Reply, level: log::Level, msg: String) {
     match reply {
         Reply::Device(device) => {
@@ -212,7 +205,10 @@ pub async fn log(msg_tx: &Sender<Msg>, reply: Reply, level: log::Level, msg: Str
             }
         }
         Reply::Web(sender) => {
-            if let Err(e) = sender.send(vec![level.to_string(), msg]).await {
+            if let Err(e) = sender
+                .send(serde_json::json!(vec![level.to_string(), msg]))
+                .await
+            {
                 eprintln!("Failed to send response: {:?}", e);
             }
         }
