@@ -102,10 +102,18 @@ export default function Page() {
                 }`}
               >
                 <td className="py-3 px-6">{item.name}</td>
-                <td className="py-3 px-6">{formatTimestamp(item.ts)}</td>
-                <td className="py-3 px-6">{item.temperature.toFixed(1)}</td>
                 <td className="py-3 px-6">
-                  {weatherCodeMap[item.code] || "❓ 未知天氣"}
+                  {item.ts !== null ? formatTimestamp(item.ts) : "n/a"}
+                </td>
+                <td className="py-3 px-6">
+                  {item.temperature !== null
+                    ? item.temperature.toFixed(1)
+                    : "n/a"}
+                </td>
+                <td className="py-3 px-6">
+                  {item.code !== null
+                    ? weatherCodeMap[item.code] || "❓ 未知天氣"
+                    : "n/a"}
                 </td>
               </tr>
             ))}

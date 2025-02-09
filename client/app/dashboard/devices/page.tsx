@@ -86,7 +86,7 @@ export default function Page() {
                 key={item.name}
                 className={`border-b ${
                   index % 2 === 0 ? "bg-gray-50" : "bg-white"
-                }`}
+                } ${!item.onboard ? "opacity-50" : ""}`} // onboard 為 false 則變灰
               >
                 <td className="py-3 px-6">{item.name}</td>
                 <td className="py-3 px-6">{formatTimestamp(item.ts)}</td>
