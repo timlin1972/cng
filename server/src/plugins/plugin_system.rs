@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use log::Level::{Error, Info, Trace};
+use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
@@ -7,7 +8,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.2.1";
+const VERSION: &str = "0.2.2";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -22,24 +23,45 @@ fn get_temperature() -> f32 {
 }
 
 #[derive(Debug)]
-pub struct Plugin {
+struct Device {
     name: String,
-    msg_tx: Sender<Msg>,
     temperature: f32,
     weather: String,
     ts_start: u64,
     tailscale_ip: String,
 }
 
+#[derive(Debug, Serialize)]
+struct DeviceForWeb {
+    name: String,
+    app_uptime: u64,
+    host_uptime: u64,
+    temperature: f32,
+    weather: String,
+    tailscale_ip: String,
+}
+
+#[derive(Debug)]
+pub struct Plugin {
+    msg_tx: Sender<Msg>,
+    name: String,
+    device: Device,
+}
+
 impl Plugin {
     pub fn new(msg_tx: Sender<Msg>) -> Self {
-        Self {
-            name: NAME.to_owned(),
-            msg_tx,
+        let device = Device {
+            name: cfg::name().to_owned(),
             temperature: 0.0,
             weather: "n/a".to_owned(),
             ts_start: utils::uptime(),
             tailscale_ip: "n/a".to_owned(),
+        };
+
+        Self {
+            msg_tx,
+            device,
+            name: NAME.to_owned(),
         }
     }
 
@@ -103,79 +125,97 @@ impl Plugin {
     }
 
     async fn show(&mut self, cmd: &Cmd) {
-        // app uptime
-        log(
-            &self.msg_tx,
-            cmd.reply.clone(),
-            Info,
-            format!(
-                "[{NAME}] App uptime: {}",
-                utils::uptime_str(utils::uptime() - self.ts_start)
-            ),
-        )
-        .await;
+        match &cmd.reply {
+            Reply::Device(_) => {
+                // app uptime
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!(
+                        "[{NAME}] App uptime: {}",
+                        utils::uptime_str(utils::uptime() - self.device.ts_start)
+                    ),
+                )
+                .await;
 
-        // host uptime
-        log(
-            &self.msg_tx,
-            cmd.reply.clone(),
-            Info,
-            format!(
-                "[{NAME}] Host uptime: {}",
-                utils::uptime_str(utils::uptime())
-            ),
-        )
-        .await;
+                // host uptime
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!(
+                        "[{NAME}] Host uptime: {}",
+                        utils::uptime_str(utils::uptime())
+                    ),
+                )
+                .await;
 
-        // tailscale ip
-        log(
-            &self.msg_tx,
-            cmd.reply.clone(),
-            Info,
-            format!("[{NAME}] Tailscale IP: {}", self.tailscale_ip),
-        )
-        .await;
+                // tailscale ip
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] Tailscale IP: {}", self.device.tailscale_ip),
+                )
+                .await;
 
-        // version
-        log(
-            &self.msg_tx,
-            cmd.reply.clone(),
-            Info,
-            format!("[{NAME}] Version: {VERSION}"),
-        )
-        .await;
+                // version
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] Version: {VERSION}"),
+                )
+                .await;
 
-        // temperature
-        log(
-            &self.msg_tx,
-            cmd.reply.clone(),
-            Info,
-            format!("[{NAME}] Temperature: {:.1}°C", get_temperature()),
-        )
-        .await;
+                // temperature
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] Temperature: {:.1}°C", get_temperature()),
+                )
+                .await;
 
-        // weather
-        log(
-            &self.msg_tx,
-            cmd.reply.clone(),
-            Info,
-            format!("[{NAME}] Weather: {}", self.weather),
-        )
-        .await;
+                // weather
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] Weather: {}", self.device.weather),
+                )
+                .await;
+            }
+            Reply::Web(sender) => {
+                let device_for_web = DeviceForWeb {
+                    name: self.device.name.clone(),
+                    app_uptime: utils::uptime() - self.device.ts_start,
+                    host_uptime: utils::uptime(),
+                    temperature: get_temperature(),
+                    weather: self.device.weather.clone(),
+                    tailscale_ip: self.device.tailscale_ip.clone(),
+                };
+                sender
+                    .send(serde_json::to_value(device_for_web).unwrap())
+                    .await
+                    .unwrap();
+            }
+        }
     }
 
     // self update
     async fn update_item(&mut self, cmd: &Cmd) {
         match cmd.data.first().unwrap().as_str() {
             "weather" => {
-                self.weather = cmd.data.get(1).unwrap().to_owned();
+                self.device.weather = cmd.data.get(1).unwrap().to_owned();
             }
             "temperature" => {
                 let temperature = cmd.data.get(1).unwrap().parse::<f32>().unwrap_or(0.0);
-                self.temperature = temperature;
+                self.device.temperature = temperature;
             }
             "tailscale_ip" => {
-                self.tailscale_ip = cmd.data.get(1).unwrap().to_owned();
+                self.device.tailscale_ip = cmd.data.get(1).unwrap().to_owned();
             }
             _ => {
                 log(
@@ -201,7 +241,7 @@ impl Plugin {
         .await;
 
         // app uptime
-        let uptime = utils::uptime() - self.ts_start;
+        let uptime = utils::uptime() - self.device.ts_start;
         msg::cmd(
             &self.msg_tx,
             cmd.reply.clone(),
@@ -239,7 +279,7 @@ impl Plugin {
             vec![
                 "tailscale_ip".to_owned(),
                 "false".to_owned(),
-                self.tailscale_ip.clone(),
+                self.device.tailscale_ip.clone(),
             ],
         )
         .await;
@@ -263,7 +303,7 @@ impl Plugin {
             vec![
                 "temperature".to_owned(),
                 "false".to_owned(),
-                self.temperature.to_string(),
+                self.device.temperature.to_string(),
             ],
         )
         .await;
@@ -277,7 +317,7 @@ impl Plugin {
             vec![
                 "weather".to_owned(),
                 "false".to_owned(),
-                self.weather.clone(),
+                self.device.weather.clone(),
             ],
         )
         .await;

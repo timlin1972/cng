@@ -90,12 +90,28 @@ export default function Page() {
               >
                 <td className="py-3 px-6">{item.name}</td>
                 <td className="py-3 px-6">{formatTimestamp(item.ts)}</td>
-                <td className="py-3 px-6">{formatUptime(item.app_uptime)}</td>
-                <td className="py-3 px-6">{formatUptime(item.host_uptime)}</td>
-                <td className="py-3 px-6">{item.version}</td>
-                <td className="py-3 px-6">{item.temperature.toFixed(1)}</td>
+                <td className="py-3 px-6">
+                  {item.app_uptime !== null
+                    ? formatUptime(item.app_uptime)
+                    : "n/a"}
+                </td>
+                <td className="py-3 px-6">
+                  {item.host_uptime !== null
+                    ? formatUptime(item.host_uptime)
+                    : "n/a"}
+                </td>
+                <td className="py-3 px-6">
+                  {item.version !== null ? item.version : "n/a"}
+                </td>
+                <td className="py-3 px-6">
+                  {item.temperature !== null
+                    ? item.temperature.toFixed(1)
+                    : "n/a"}
+                </td>
                 <td className="py-3 px-6">{formatTimestamp(item.last_seen)}</td>
-                <td className="py-3 px-6">{item.tailscale_ip}</td>
+                <td className="py-3 px-6">
+                  {item.tailscale_ip !== null ? item.tailscale_ip : "n/a"}
+                </td>
               </tr>
             ))}
           </tbody>
