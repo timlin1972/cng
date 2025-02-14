@@ -64,6 +64,7 @@ pub const ACT_STOP: &str = "stop";
 pub const ACT_CMD: &str = "cmd";
 pub const ACT_TRACE: &str = "trace";
 pub const ACT_WEATHER: &str = "weather";
+pub const ACT_WEATHER_DAILY: &str = "weather_daily";
 pub const ACT_PUT: &str = "put";
 pub const ACT_FILE: &str = "file";
 pub const ACT_WORLDTIME: &str = "worldtime";
@@ -108,9 +109,7 @@ pub struct City {
     pub name: String,
     pub latitude: f32,
     pub longitude: f32,
-    pub ts: Option<i64>,
-    pub temperature: Option<f32>,
-    pub code: Option<u8>,
+    pub weather: Option<utils::Weather>,
 }
 
 #[derive(Debug, Clone)]

@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use log::Level::{Error, Info, Trace};
+use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
 use crate::msg::{self, devices, log, Cmd, Data, DevInfo, Msg, Reply};
-use crate::plugins::{plugin_mqtt, plugins_main};
+use crate::plugins::{plugin_mqtt, plugin_nas, plugin_system, plugins_main};
 use crate::utils;
 
 pub const NAME: &str = "devices";
@@ -35,11 +35,28 @@ impl Plugin {
                 vec![
                     device_name.to_owned(),
                     "p".to_owned(),
-                    "system".to_owned(),
-                    "update".to_owned(),
+                    plugin_system::NAME.to_owned(),
+                    msg::ACT_UPDATE.to_owned(),
                 ],
             )
             .await;
+
+            // if I am NAS, ask others to update NAS
+            if cfg::name() == cfg::nas() {
+                msg::cmd(
+                    msg_tx,
+                    Reply::Device(cfg::name()),
+                    plugin_mqtt::NAME.to_owned(),
+                    msg::ACT_ASK.to_owned(),
+                    vec![
+                        device_name.to_owned(),
+                        "p".to_owned(),
+                        plugin_nas::NAME.to_owned(),
+                        msg::ACT_UPDATE.to_owned(),
+                    ],
+                )
+                .await;
+            }
         }
 
         if let Some(d) = self.devices.iter_mut().find(|d| d.name == device.name) {
@@ -134,7 +151,7 @@ impl Plugin {
         log(
             &self.msg_tx,
             Reply::Device(cfg::name()),
-            Trace,
+            Info,
             format!("[{NAME}] init"),
         )
         .await;

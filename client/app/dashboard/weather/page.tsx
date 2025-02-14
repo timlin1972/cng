@@ -1,17 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { convert_utc_to_local } from "@/app/lib/utils";
+
+interface WeatherDaily {
+  time: string;
+  temperature_2m_max: number;
+  temperature_2m_min: number;
+  precipitation_probability_max: number;
+  weather_code: number;
+}
+
+interface Weather {
+  time: string;
+  temperature: number;
+  weathercode: number;
+  daily: WeatherDaily[];
+}
 
 interface WeatherData {
   name: string;
   latitude: number;
   longitude: number;
-  ts: number;
-  temperature: number;
-  code: number;
+  weather: Weather;
 }
 
-// 天氣代碼對應表
 const weatherCodeMap: Record<number, string> = {
   0: "☀️ 晴天",
   1: "🌤 多雲時晴",
@@ -46,16 +59,15 @@ const weatherCodeMap: Record<number, string> = {
 export default function Page() {
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [expandedCity, setExpandedCity] = useState<string | null>(null);
 
   useEffect(() => {
     async function sendPostRequest() {
       try {
         const response = await fetch("/api/v1/cmd", {
-          method: "POST", // 指定使用 POST 方法
-          headers: {
-            "Content-Type": "application/json", // 告知伺服器資料格式
-          },
-          body: JSON.stringify({ cmd: "p weather show" }), // 請求主體資料
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cmd: "p weather show" }),
         });
 
         if (!response.ok) {
@@ -69,13 +81,17 @@ export default function Page() {
       }
     }
 
-    // 當元件掛載時自動呼叫 POST 請求
     sendPostRequest();
-  }, []); // 空的依賴陣列表示只在元件首次掛載時執行
+  }, []);
 
-  const formatTimestamp = (ts: number) => {
-    const date = new Date(ts * 1000);
-    return date.toLocaleString("zh-TW", { hour12: false });
+  // 根據系統語系格式化日期顯示 "YYYY-MM-DD (當地語系的星期)"
+  const formatDateWithWeekday = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const locale = navigator.language || "en-US"; // 取得使用者語系
+    const weekday = new Intl.DateTimeFormat(locale, {
+      weekday: "short",
+    }).format(date);
+    return `${dateStr} (${weekday})`;
   };
 
   return (
@@ -83,39 +99,98 @@ export default function Page() {
       <h1 className="text-3xl font-bold text-center mb-6">🌍 天氣資訊</h1>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white shadow-md rounded-lg overflow-hidden">
-          {/* 表頭 */}
           <thead className="bg-blue-500 text-white">
             <tr>
               <th className="py-3 px-6 text-left">📍 地點</th>
               <th className="py-3 px-6 text-left">📅 時間</th>
               <th className="py-3 px-6 text-left">🌡 溫度 (°C)</th>
               <th className="py-3 px-6 text-left">🌦 天氣</th>
+              <th className="py-3 px-6 text-left">🔽 預報</th>
             </tr>
           </thead>
-          {/* 表格內容 */}
           <tbody>
             {weatherData.map((item, index) => (
-              <tr
-                key={item.name}
-                className={`border-b ${
-                  index % 2 === 0 ? "bg-gray-50" : "bg-white"
-                }`}
-              >
-                <td className="py-3 px-6">{item.name}</td>
-                <td className="py-3 px-6">
-                  {item.ts !== null ? formatTimestamp(item.ts) : "n/a"}
-                </td>
-                <td className="py-3 px-6">
-                  {item.temperature !== null
-                    ? item.temperature.toFixed(1)
-                    : "n/a"}
-                </td>
-                <td className="py-3 px-6">
-                  {item.code !== null
-                    ? weatherCodeMap[item.code] || "❓ 未知天氣"
-                    : "n/a"}
-                </td>
-              </tr>
+              <React.Fragment key={item.name}>
+                <tr
+                  className={`border-b ${
+                    index % 2 === 0 ? "bg-gray-50" : "bg-white"
+                  }`}
+                >
+                  <td className="py-3 px-6">{item.name}</td>
+                  <td className="py-3 px-6">
+                    {item.weather.time
+                      ? convert_utc_to_local(item.weather.time)
+                      : "n/a"}
+                  </td>
+                  <td className="py-3 px-6">
+                    {item.weather.temperature !== null
+                      ? `${item.weather.temperature.toFixed(1)} °C`
+                      : "n/a"}
+                  </td>{" "}
+                  <td className="py-3 px-6">
+                    {weatherCodeMap[item.weather.weathercode] || "❓ 未知天氣"}
+                  </td>
+                  <td className="py-3 px-6">
+                    <button
+                      className="bg-blue-500 text-white px-4 py-2 rounded-lg"
+                      onClick={() =>
+                        setExpandedCity(
+                          expandedCity === item.name ? null : item.name
+                        )
+                      }
+                    >
+                      {expandedCity === item.name ? "收合" : "展開"}
+                    </button>
+                  </td>
+                </tr>
+
+                {/* 展開的七天天氣預報 - 忽略第一天 */}
+                {expandedCity === item.name && (
+                  <tr>
+                    <td colSpan={5} className="p-4 bg-gray-100">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-gray-300">
+                            <th className="py-2 px-4 text-left">📆 日期</th>
+                            <th className="py-2 px-4 text-left">🌦 天氣概況</th>
+                            <th className="py-2 px-4 text-left">
+                              ☔ 降雨機率 (%)
+                            </th>
+                            <th className="py-2 px-4 text-left">
+                              🌡 高 / 低 溫 (°C)
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {item.weather.daily.slice(1).map(
+                            (
+                              day,
+                              i // 忽略第一天
+                            ) => (
+                              <tr key={i} className="border-b border-gray-300">
+                                <td className="py-2 px-4">
+                                  {formatDateWithWeekday(day.time)}
+                                </td>
+                                <td className="py-2 px-4">
+                                  {weatherCodeMap[day.weather_code] ||
+                                    "❓ 未知天氣"}
+                                </td>
+                                <td className="py-2 px-4">
+                                  {day.precipitation_probability_max}%
+                                </td>
+                                <td className="py-2 px-4">
+                                  {day.temperature_2m_max.toFixed(1)}°C /{" "}
+                                  {day.temperature_2m_min.toFixed(1)}°C
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>

@@ -4,6 +4,7 @@ pub mod plugin_devices;
 pub mod plugin_file;
 pub mod plugin_log;
 pub mod plugin_mqtt;
+pub mod plugin_nas;
 pub mod plugin_ping;
 pub mod plugin_shell;
 pub mod plugin_system;

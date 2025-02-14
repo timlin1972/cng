@@ -5,7 +5,7 @@ use aes_gcm::{Aes256Gcm, Nonce}; // Or `Aes128Gcm`
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, Local};
 use rand::RngCore;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
 pub fn ts() -> u64 {
@@ -120,16 +120,26 @@ pub async fn device_weather() -> String {
     response.trim().to_owned()
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WeatherDaily {
+    pub time: String,
+    pub temperature_2m_max: f32,
+    pub temperature_2m_min: f32,
+    pub precipitation_probability_max: u8,
+    pub weather_code: u8,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Weather {
     pub time: String,
     pub temperature: f32,
-    pub code: u8,
+    pub weathercode: u8,
+    pub daily: Vec<WeatherDaily>,
 }
 
 pub async fn weather(latitude: f32, longitude: f32) -> Result<Weather, String> {
     let response = match reqwest::Client::new()
-        .get(format!("https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true"))
+        .get(format!("https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&current_weather=true"))
         .timeout(tokio::time::Duration::from_secs(5))
         .send()
         .await
@@ -147,15 +157,40 @@ pub async fn weather(latitude: f32, longitude: f32) -> Result<Weather, String> {
         }
     };
 
-    let weather: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let weather_data: serde_json::Value = serde_json::from_str(&response).unwrap();
+
+    let mut daily_forecast = Vec::new();
+    if let (Some(max_temps), Some(min_temps), Some(precip_probs), Some(weather_code), Some(dates)) = (
+        weather_data["daily"]["temperature_2m_max"].as_array(),
+        weather_data["daily"]["temperature_2m_min"].as_array(),
+        weather_data["daily"]["precipitation_probability_max"].as_array(),
+        weather_data["daily"]["weather_code"].as_array(),
+        weather_data["daily"]["time"].as_array(),
+    ) {
+        for i in 0..max_temps.len() {
+            let daily = WeatherDaily {
+                time: dates[i].as_str().unwrap().to_owned(),
+                temperature_2m_max: max_temps[i].as_f64().unwrap() as f32,
+                temperature_2m_min: min_temps[i].as_f64().unwrap() as f32,
+                precipitation_probability_max: precip_probs[i].as_f64().unwrap() as u8,
+                weather_code: weather_code[i].as_u64().unwrap() as u8,
+            };
+            daily_forecast.push(daily);
+        }
+    }
 
     let weather = Weather {
-        time: weather["current_weather"]["time"]
+        time: weather_data["current_weather"]["time"]
             .as_str()
             .unwrap()
             .to_owned(),
-        temperature: weather["current_weather"]["temperature"].as_f64().unwrap() as f32,
-        code: weather["current_weather"]["weathercode"].as_u64().unwrap() as u8,
+        temperature: weather_data["current_weather"]["temperature"]
+            .as_f64()
+            .unwrap() as f32,
+        weathercode: weather_data["current_weather"]["weathercode"]
+            .as_u64()
+            .unwrap() as u8,
+        daily: daily_forecast,
     };
 
     Ok(weather)
@@ -168,11 +203,11 @@ const WEATHER_CODES: [(u8, &str); 28] = [
     (3, "陰天"),
     (45, "有霧"),
     (48, "凍霧"),
-    (51, "毛毛雨（小雨強度）"),
-    (53, "毛毛雨（中雨強度）"),
-    (55, "毛毛雨（大雨強度）"),
-    (56, "凍雨（小雨強度）"),
-    (57, "凍雨（大雨強度）"),
+    (51, "毛毛雨（小）"),
+    (53, "毛毛雨（中）"),
+    (55, "毛毛雨（大）"),
+    (56, "凍雨（小）"),
+    (57, "凍雨（大）"),
     (61, "小雨"),
     (63, "中雨"),
     (65, "大雨"),
@@ -192,8 +227,47 @@ const WEATHER_CODES: [(u8, &str); 28] = [
     (99, "雷雨夾大冰雹"),
 ];
 
+const WEATHER_CODES_EMOJI: [(u8, &str); 28] = [
+    (0, "☀️"),
+    (1, "🌤️"),
+    (2, "⛅"),
+    (3, "☁️"),
+    (45, "🌫️"),
+    (48, "❄️"),
+    (51, "🌧️"),
+    (53, "🌧️"),
+    (55, "🌧️"),
+    (56, "❄️"),
+    (57, "❄️"),
+    (61, "🌧️"),
+    (63, "🌧️"),
+    (65, "🌧️"),
+    (66, "❄️"),
+    (67, "❄️"),
+    (71, "🌨️"),
+    (73, "🌨️"),
+    (75, "🌨️"),
+    (77, "❄️"),
+    (80, "🌦️"),
+    (81, "🌦️"),
+    (82, "🌦️"),
+    (85, "🌨️"),
+    (86, "🌨️"),
+    (95, "⛈️"),
+    (96, "⛈️"),
+    (99, "⛈️"),
+];
+
 pub fn weather_code_str(code: u8) -> &'static str {
     WEATHER_CODES
+        .iter()
+        .find(|&&(c, _)| c == code)
+        .map(|&(_, desc)| desc)
+        .unwrap_or("未知天氣")
+}
+
+pub fn weather_code_emoji(code: u8) -> &'static str {
+    WEATHER_CODES_EMOJI
         .iter()
         .find(|&&(c, _)| c == code)
         .map(|&(_, desc)| desc)
@@ -232,6 +306,14 @@ pub fn convert_datetime(datetime: &str) -> Result<String, String> {
     let datetime = datetime.replace("T", " ").replace("Z", "");
     let datetime = datetime.split('.').next().unwrap();
     Ok(datetime.to_owned())
+}
+
+use chrono::NaiveDateTime;
+
+pub fn datetime_str_to_ts(datetime_str: &str) -> i64 {
+    let naive_datetime = NaiveDateTime::parse_from_str(datetime_str, "%Y-%m-%dT%H:%M")
+        .expect("解析日期時間字串失敗");
+    naive_datetime.and_utc().timestamp()
 }
 
 use sysinfo::Networks;

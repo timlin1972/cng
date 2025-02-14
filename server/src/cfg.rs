@@ -13,6 +13,7 @@ const SHELL: &str = "sh";
 pub const MODE_CLI: &str = "cli";
 pub const MODE_GUI: &str = "gui";
 const TRACE: u8 = 1;
+pub const DEF_NAS: &str = "pi5";
 
 static INSTANCE: Lazy<Mutex<Cfg>> = Lazy::new(|| Mutex::new(Cfg::new()));
 
@@ -36,6 +37,10 @@ fn default_trace() -> u8 {
     TRACE
 }
 
+fn default_nas() -> String {
+    DEF_NAS.to_string()
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Cfg {
     #[serde(default = "default_name")]
@@ -49,6 +54,8 @@ pub struct Cfg {
     #[serde(default = "default_trace")]
     trace: u8,
     db: String,
+    #[serde(default = "default_nas")]
+    nas: String,
 }
 
 impl Cfg {
@@ -63,6 +70,7 @@ impl Cfg {
                 mode: MODE_CLI.to_owned(),
                 trace: TRACE,
                 db: "mongodb://localhost:27017".to_owned(),
+                nas: DEF_NAS.to_owned(),
             }
         } else {
             let file_content = fs::read_to_string(CFG_FILE).unwrap();
@@ -99,6 +107,10 @@ impl Cfg {
     fn trace(&self) -> u8 {
         self.trace
     }
+
+    fn nas(&self) -> &str {
+        &self.nas
+    }
 }
 
 pub fn name() -> String {
@@ -129,4 +141,9 @@ pub fn trace() -> u8 {
 pub fn db() -> String {
     let cfg = Cfg::get_instance();
     cfg.db.to_owned()
+}
+
+pub fn nas() -> String {
+    let cfg = Cfg::get_instance();
+    cfg.nas().to_owned()
 }

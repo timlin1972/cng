@@ -1,0 +1,104 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36" version="26.0.12">
+  <diagram name="Page-1" id="WN7ggcJXkTwT63_s0bg3">
+    <mxGraphModel dx="1564" dy="1040" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-1" value="mqtt" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="190" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="TkMFkF6Ef02vG6fguBbQ-2" target="TkMFkF6Ef02vG6fguBbQ-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-21" value="onboard&lt;div&gt;|app_uptime&lt;/div&gt;&lt;div&gt;|host_uptime&lt;div&gt;|version&lt;/div&gt;&lt;div&gt;|temperature&lt;/div&gt;&lt;div&gt;|weather&lt;div&gt;|tailscale_ip&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="TkMFkF6Ef02vG6fguBbQ-5">
+          <mxGeometry x="-0.1746" y="1" relative="1" as="geometry">
+            <mxPoint x="59" y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="TkMFkF6Ef02vG6fguBbQ-2" target="TkMFkF6Ef02vG6fguBbQ-32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-34" value="ask" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="TkMFkF6Ef02vG6fguBbQ-33">
+          <mxGeometry x="0.4639" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-2" value="&lt;div style=&quot;background-color: rgb(255, 255, 255); font-family: &amp;quot;Fira Code&amp;quot;, Consolas, &amp;quot;Microsoft Yahei&amp;quot;, Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; line-height: 19px; white-space: pre;&quot;&gt;process_event&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="230" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;" edge="1" parent="1" source="TkMFkF6Ef02vG6fguBbQ-4" target="TkMFkF6Ef02vG6fguBbQ-24">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-26" value="Data::DeviceUpdate" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="TkMFkF6Ef02vG6fguBbQ-25">
+          <mxGeometry x="-0.0511" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-4" value="&lt;div style=&quot;background-color: rgb(255, 255, 255); font-family: &amp;quot;Fira Code&amp;quot;, Consolas, &amp;quot;Microsoft Yahei&amp;quot;, Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; line-height: 19px; white-space: pre;&quot;&gt;&lt;div style=&quot;line-height: 19px;&quot;&gt;device_update&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="340" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-23" value="devices" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="190" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="TkMFkF6Ef02vG6fguBbQ-24" target="TkMFkF6Ef02vG6fguBbQ-28">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-30" value="onboard&lt;div&gt;0 to 1&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="TkMFkF6Ef02vG6fguBbQ-29">
+          <mxGeometry x="0.0147" y="-1" relative="1" as="geometry">
+            <mxPoint x="23" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-24" value="&lt;div style=&quot;background-color: rgb(255, 255, 255); font-family: &amp;quot;Fira Code&amp;quot;, Consolas, &amp;quot;Microsoft Yahei&amp;quot;, Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; line-height: 19px; white-space: pre;&quot;&gt;&lt;div style=&quot;line-height: 19px;&quot;&gt;device_update&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="230" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-28" value="ask &quot;device_name&quot;&lt;div&gt;p system update&amp;nbsp;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="300" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="TkMFkF6Ef02vG6fguBbQ-32" target="TkMFkF6Ef02vG6fguBbQ-38">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1080" y="520" />
+              <mxPoint x="1080" y="240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-32" value="p system update" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="500" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-35" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;dashPattern=8 8;" edge="1" parent="1" source="TkMFkF6Ef02vG6fguBbQ-28" target="TkMFkF6Ef02vG6fguBbQ-32">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="490" y="370" as="sourcePoint" />
+            <mxPoint x="650" y="250" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1040" y="320" />
+              <mxPoint x="1040" y="480" />
+              <mxPoint x="300" y="480" />
+              <mxPoint x="300" y="510" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-37" value="system" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="190" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-38" value="update" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="230" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;dashPattern=8 8;" edge="1" parent="1" source="TkMFkF6Ef02vG6fguBbQ-38" target="TkMFkF6Ef02vG6fguBbQ-4">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="490" y="450" as="sourcePoint" />
+            <mxPoint x="1130" y="250" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1280" y="240" />
+              <mxPoint x="1280" y="160" />
+              <mxPoint x="300" y="160" />
+              <mxPoint x="300" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkMFkF6Ef02vG6fguBbQ-41" value="ask &quot;device_name&quot;&lt;div&gt;p nas update&lt;/div&gt;&lt;div&gt;(if pi5)&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="340" width="120" height="50" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

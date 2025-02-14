@@ -95,7 +95,7 @@ impl Panels {
 
         let layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area_top);
 
         // area_left, area_right
@@ -104,7 +104,7 @@ impl Panels {
         // area_info, area_brief
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
             .split(area_left);
         let [area_info, area_brief] = [layout[0], layout[1]];
 

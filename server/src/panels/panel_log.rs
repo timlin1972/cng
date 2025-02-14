@@ -10,6 +10,7 @@ use crate::utils;
 
 pub const NAME: &str = "Log";
 const MAX_OUTPUT: usize = 100;
+const POPUP_ALL: &str = "All";
 const POPUP_HELP: &str = "Help";
 const HELP_TEXT: &str = r#"
 c - Clear
@@ -31,13 +32,22 @@ impl Panel {
             name: NAME.to_owned(),
             input: "".to_owned(),
             output: vec![],
-            popup: vec![Popup {
-                show: false,
-                name: POPUP_HELP.to_owned(),
-                x: 50,
-                y: 30,
-                text: HELP_TEXT.to_owned(),
-            }],
+            popup: vec![
+                Popup {
+                    show: false,
+                    name: POPUP_HELP.to_owned(),
+                    x: 50,
+                    y: 30,
+                    text: HELP_TEXT.to_owned(),
+                },
+                Popup {
+                    show: false,
+                    name: POPUP_ALL.to_owned(),
+                    x: 100,
+                    y: 80,
+                    text: "".to_owned(),
+                },
+            ],
             msg_tx,
         }
     }
@@ -112,6 +122,18 @@ impl panels_main::Panel for Panel {
                     for p in &mut self.popup {
                         if p.name == POPUP_HELP {
                             p.show = true;
+                            break;
+                        }
+                    }
+                }
+                KeyCode::Char('q') => {
+                    return true;
+                }
+                KeyCode::Char('a') => {
+                    for p in &mut self.popup {
+                        if p.name == POPUP_ALL {
+                            p.show = true;
+                            p.text = self.output.join("\n");
                             break;
                         }
                     }

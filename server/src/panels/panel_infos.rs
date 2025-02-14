@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{Datelike, NaiveDate};
 use log::Level::{Error, Trace};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
@@ -9,14 +10,19 @@ use crate::utils;
 use crate::{cfg, msg};
 
 pub const NAME: &str = "Infos";
+const POPUP_ALL: &str = "All";
 const POPUP_HELP: &str = "Help";
 const HELP_TEXT: &str = r#"
 h      - Help
 ⭠ / ⭢  - Change tab
 "#;
 const DEVICES_POLLING: u64 = 60;
-const TABS: usize = 5;
+const TABS: usize = 6;
 
+fn format_date(input: &str) -> String {
+    let date = NaiveDate::parse_from_str(input, "%Y-%m-%d").expect("無法解析日期");
+    format!("{} {}", date.format("%m/%d"), date.weekday())
+}
 #[derive(Debug)]
 pub struct Panel {
     name: String,
@@ -36,13 +42,22 @@ impl Panel {
             name: NAME.to_owned(),
             input: "".to_owned(),
             output: vec![],
-            popup: vec![Popup {
-                show: false,
-                name: POPUP_HELP.to_owned(),
-                x: 50,
-                y: 30,
-                text: HELP_TEXT.to_owned(),
-            }],
+            popup: vec![
+                Popup {
+                    show: false,
+                    name: POPUP_HELP.to_owned(),
+                    x: 50,
+                    y: 30,
+                    text: HELP_TEXT.to_owned(),
+                },
+                Popup {
+                    show: false,
+                    name: POPUP_ALL.to_owned(),
+                    x: 100,
+                    y: 80,
+                    text: "".to_owned(),
+                },
+            ],
             msg_tx,
             devices: vec![],
             tab_index: 0,
@@ -189,25 +204,13 @@ impl Panel {
                     "City", "Update", "Temp", "Weather"
                 ));
                 for city in &self.weather {
-                    // update
-                    let update = if let Some(t) = city.ts {
-                        utils::ts_str(t as u64)
-                    } else {
-                        "n/a".to_owned()
-                    };
-
-                    // temperature
-                    let temperature = if let Some(t) = city.temperature {
-                        format!("{t}°C")
-                    } else {
-                        "n/a".to_owned()
-                    };
-
-                    // weather
-                    let weather = if let Some(t) = city.code {
-                        utils::weather_code_str(t)
-                    } else {
-                        "n/a"
+                    let (update, temperature, weather) = match &city.weather {
+                        Some(weather) => (
+                            utils::ts_str(utils::datetime_str_to_ts(&weather.time) as u64),
+                            format!("{:.1}°C", weather.temperature),
+                            utils::weather_code_str(weather.weathercode).to_owned(),
+                        ),
+                        None => ("n/a".to_owned(), "n/a".to_owned(), "n/a".to_owned()),
                     };
 
                     self.output.push(format!(
@@ -217,6 +220,57 @@ impl Panel {
                 }
             }
             4 => {
+                if self.weather.is_empty() {
+                    return;
+                }
+                if self.weather[0].weather.is_none() {
+                    return;
+                }
+
+                let weather = self.weather[0].weather.as_ref().unwrap();
+                let mut title = String::new();
+                title.push_str(&format!("{:<12} ", "City"));
+                for (idx, daily) in weather.daily.iter().enumerate() {
+                    if idx == 0 {
+                        continue;
+                    }
+                    title.push_str(&format!("{:<27} ", format_date(&daily.time)));
+                }
+                self.output.push(title);
+
+                for city in &self.weather {
+                    if let Some(weather) = &city.weather {
+                        let mut info = String::new();
+                        for (idx, daily) in weather.daily.iter().enumerate() {
+                            if idx == 0 {
+                                continue;
+                            }
+                            let (
+                                temperature,
+                                precipitation_probability_max,
+                                weather_emoji,
+                                weather,
+                            ) = (
+                                format!(
+                                    "{:.0}/{:.0}",
+                                    daily.temperature_2m_max, daily.temperature_2m_min
+                                ),
+                                format!("{}%", daily.precipitation_probability_max),
+                                utils::weather_code_emoji(daily.weather_code).to_owned(),
+                                utils::weather_code_str(daily.weather_code).to_owned(),
+                            );
+                            info.push_str(&format!(
+                                "{weather_emoji} {precipitation_probability_max:3} {temperature:7} "
+                            ));
+                            info.push_str(&weather);
+                            info.push_str(" ".repeat(13 - weather.len() * 2 / 3).as_str());
+                        }
+
+                        self.output.push(format!("{:<12} {info}", city.name));
+                    }
+                }
+            }
+            5 => {
                 self.output
                     .push(format!("{:<12} {:<11}", "City", "Datetime"));
                 for city in &self.worldtime {
@@ -313,6 +367,9 @@ impl panels_main::Panel for Panel {
             }
             #[allow(clippy::single_match)]
             false => match key.code {
+                KeyCode::Char('q') => {
+                    return true;
+                }
                 KeyCode::Char('h') => {
                     for p in &mut self.popup {
                         if p.name == POPUP_HELP {
@@ -328,6 +385,15 @@ impl panels_main::Panel for Panel {
                 KeyCode::Left => {
                     self.tab_index = (self.tab_index + TABS - 1) % TABS;
                     self.tab_refresh();
+                }
+                KeyCode::Char('a') => {
+                    for p in &mut self.popup {
+                        if p.name == POPUP_ALL {
+                            p.show = true;
+                            p.text = self.output.join("\n");
+                            break;
+                        }
+                    }
                 }
                 _ => {}
             },
