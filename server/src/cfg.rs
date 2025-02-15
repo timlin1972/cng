@@ -15,6 +15,8 @@ pub const MODE_GUI: &str = "gui";
 const TRACE: u8 = 1;
 pub const DEF_NAS: &str = "pi5";
 
+pub const FILE_FOLDER: &str = "./shared";
+
 static INSTANCE: Lazy<Mutex<Cfg>> = Lazy::new(|| Mutex::new(Cfg::new()));
 
 fn default_name() -> String {

@@ -225,6 +225,29 @@ impl Plugin {
         }
     }
 
+    async fn nas(&mut self, cmd: &Cmd) {
+        let mut msg = String::new();
+        for t in &cmd.data[0..] {
+            msg += t;
+            msg += " ";
+        }
+
+        let msg = msg.trim();
+
+        let enc_msg = utils::encrypt(&cfg::key(), msg).unwrap();
+
+        if let Reply::Device(device) = &cmd.reply {
+            mqtt::utils::publish(
+                &self.msg_tx,
+                self.client.as_ref(),
+                &format!("tln/{}/nas", device),
+                false,
+                &enc_msg,
+            )
+            .await;
+        }
+    }
+
     async fn help(&self, cmd: &Cmd) {
         log(
             &self.msg_tx,
@@ -270,6 +293,7 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_ASK => self.ask(cmd).await,
                 msg::ACT_REPLY => self.reply(cmd).await,
                 msg::ACT_FILE => self.file(cmd).await,
+                msg::ACT_NAS => self.nas(cmd).await,
                 msg::ACT_PUBLISH => {
                     mqtt::utils::publish(
                         &self.msg_tx,
