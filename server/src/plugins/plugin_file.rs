@@ -11,7 +11,6 @@ use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
 
 pub const NAME: &str = "file";
-const FILE_FOLDER: &str = "./shared";
 const BUFFER_SIZE: usize = 4 * 1024;
 
 #[derive(Debug)]
@@ -33,13 +32,13 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        if !Path::new(FILE_FOLDER).exists() {
-            fs::create_dir(FILE_FOLDER).unwrap();
+        if !Path::new(cfg::FILE_FOLDER).exists() {
+            fs::create_dir(cfg::FILE_FOLDER).unwrap();
             log(
                 &self.msg_tx,
                 Reply::Device(cfg::name()),
                 Info,
-                format!("[{NAME}] Folder '{FILE_FOLDER}' is created."),
+                format!("[{NAME}] Folder '{}' is created.", cfg::FILE_FOLDER),
             )
             .await;
         } else {
@@ -47,7 +46,7 @@ impl Plugin {
                 &self.msg_tx,
                 Reply::Device(cfg::name()),
                 Info,
-                format!("[{NAME}] Folder '{FILE_FOLDER}' is existed."),
+                format!("[{NAME}] Folder '{}' is existed.", cfg::FILE_FOLDER),
             )
             .await;
         }
@@ -79,7 +78,7 @@ impl Plugin {
         .await;
 
         // list files in shared file
-        let paths = fs::read_dir(FILE_FOLDER).unwrap();
+        let paths = fs::read_dir(cfg::FILE_FOLDER).unwrap();
         for path in paths {
             let path = path.unwrap().path();
             log(
@@ -119,7 +118,7 @@ impl Plugin {
             }
         }
 
-        let path = format!("{FILE_FOLDER}/{}", cmd.data[0]);
+        let path = format!("{}/{}", cfg::FILE_FOLDER, cmd.data[0]);
 
         // check if file exist or not
         if !Path::new(&path).exists() {
@@ -195,7 +194,7 @@ impl Plugin {
                     self.filename = Some(cmd.data[1].clone());
                     self.sequence = 0;
 
-                    let path = format!("{FILE_FOLDER}/{}", self.filename.as_ref().unwrap());
+                    let path = format!("{}/{}", cfg::FILE_FOLDER, self.filename.as_ref().unwrap());
                     let _ = File::create(path).unwrap();
                 }
                 "content" => {
@@ -222,7 +221,7 @@ impl Plugin {
                         return;
                     }
 
-                    let path = format!("{FILE_FOLDER}/{}", self.filename.as_ref().unwrap());
+                    let path = format!("{}/{}", cfg::FILE_FOLDER, self.filename.as_ref().unwrap());
                     let mut file = OpenOptions::new().append(true).open(path).unwrap();
 
                     let content = ascii85::decode(&cmd.data[2]).unwrap();

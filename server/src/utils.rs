@@ -346,3 +346,16 @@ pub fn get_tailscale_ip() -> String {
     }
     "n/a".to_string()
 }
+
+use std::fs::File;
+use std::io::{BufReader, Read};
+
+pub fn calculate_md5(path: &str) -> std::io::Result<String> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut buffer = Vec::new();
+    reader.read_to_end(&mut buffer)?;
+
+    let digest = md5::compute(buffer);
+    Ok(format!("{:x}", digest))
+}

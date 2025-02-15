@@ -3,7 +3,7 @@ use rumqttc::{AsyncClient, Event, Outgoing, Packet, Publish, QoS};
 use tokio::sync::mpsc::Sender;
 
 use crate::msg::{self, device_update, log, DevInfo, Msg, Reply};
-use crate::plugins::{plugin_file, plugin_mqtt, plugin_system};
+use crate::plugins::{plugin_file, plugin_mqtt, plugin_nas, plugin_system};
 use crate::{cfg, utils};
 
 const NAME: &str = "mqtt::utils";
@@ -61,7 +61,7 @@ pub async fn publish(
     .await;
 
     if let Err(e) = client
-        .publish(topic, QoS::AtLeastOnce, retain, payload)
+        .publish(topic, QoS::AtMostOnce, retain, payload)
         .await
     {
         log(
@@ -181,6 +181,9 @@ async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
     if process_event_publish_file(msg_tx, publish).await {
         return;
     }
+    if process_event_publish_nas(msg_tx, publish).await {
+        return;
+    }
     log(
         msg_tx,
         Reply::Device(cfg::name()),
@@ -284,7 +287,7 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
                 };
 
                 let mut data = vec![];
-                for i in 5..=9 {
+                for i in 5..=payload_vec.len() - 1 {
                     if let Some(t) = payload_vec.get(i) {
                         data.push(t.to_owned());
                     }
@@ -518,6 +521,48 @@ async fn process_event_publish_file(msg_tx: &Sender<Msg>, publish: &Publish) -> 
                     Reply::Device(cfg::name()),
                     plugin_file::NAME.to_owned(),
                     msg::ACT_FILE.to_owned(),
+                    payload_vec,
+                )
+                .await;
+            }
+        }
+
+        return true;
+    }
+
+    false
+}
+
+async fn process_event_publish_nas(msg_tx: &Sender<Msg>, publish: &Publish) -> bool {
+    let topic = &publish.topic;
+
+    let re = regex::Regex::new(r"^tln/([^/]+)/nas$").unwrap();
+    if let Some(captures) = re.captures(topic) {
+        if let Some(name) = captures.get(1) {
+            let name = name.as_str();
+
+            if name == cfg::name() {
+                let payload = std::str::from_utf8(&publish.payload).unwrap();
+                let dec_payload = utils::decrypt(&cfg::key(), payload).unwrap();
+
+                let payload_vec: Vec<String> = dec_payload
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect();
+
+                log(
+                    msg_tx,
+                    Reply::Device(cfg::name()),
+                    Trace,
+                    format!("[{NAME}] <- publish::reply: {name}, '{dec_payload}'"),
+                )
+                .await;
+
+                msg::cmd(
+                    msg_tx,
+                    Reply::Device(cfg::name()),
+                    plugin_nas::NAME.to_owned(),
+                    msg::ACT_NAS.to_owned(),
                     payload_vec,
                 )
                 .await;

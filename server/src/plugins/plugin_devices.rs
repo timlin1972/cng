@@ -41,8 +41,8 @@ impl Plugin {
             )
             .await;
 
-            // if I am NAS, ask others to update NAS
-            if cfg::name() == cfg::nas() {
+            // if I am NAS, ask others to update NAS but do not ask myself
+            if cfg::name() == cfg::nas() && device_name != cfg::nas() {
                 msg::cmd(
                     msg_tx,
                     Reply::Device(cfg::name()),
@@ -144,7 +144,41 @@ impl Plugin {
             }
         }
 
+        // if no cfg::nas() in devices or not onboard, ask NAS to unsync
+        if !self.devices.iter().any(|d| d.name == cfg::nas()) {
+            msg::cmd(
+                &self.msg_tx,
+                Reply::Device(cfg::name()),
+                plugin_nas::NAME.to_owned(),
+                msg::ACT_NAS.to_owned(),
+                vec!["sync".to_owned(), false.to_string()],
+            )
+            .await;
+        } else {
+            let nas = self.devices.iter().find(|d| d.name == cfg::nas()).unwrap();
+            if nas.onboard.is_some() && !nas.onboard.unwrap() {
+                msg::cmd(
+                    &self.msg_tx,
+                    Reply::Device(cfg::name()),
+                    plugin_nas::NAME.to_owned(),
+                    msg::ACT_NAS.to_owned(),
+                    vec!["sync".to_owned(), false.to_string()],
+                )
+                .await;
+            }
+        }
+
         devices(&self.msg_tx, self.devices.clone()).await;
+
+        // send to plugin_nas
+        self.msg_tx
+            .send(Msg {
+                ts: utils::ts(),
+                plugin: plugin_nas::NAME.to_owned(),
+                data: Data::Devices(self.devices.clone()),
+            })
+            .await
+            .unwrap();
     }
 
     async fn init(&mut self) {
