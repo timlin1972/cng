@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::Level::{Error, Info};
+use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
 use crate::msg::{self, log, Cmd, Data, Msg, Reply, Worldtime};
@@ -8,6 +8,47 @@ use crate::{cfg, utils};
 
 pub const NAME: &str = "worldtime";
 const WORLDTIME_POLLING: u64 = 5 * 60;
+
+async fn update_worldtime(
+    cities: &[Worldtime],
+    msg_tx: &Sender<Msg>,
+    reply: Reply,
+    log_level: log::Level,
+) {
+    for city in cities {
+        log(
+            msg_tx,
+            reply.clone(),
+            log_level,
+            format!("[{NAME}] update {}.", city.name),
+        )
+        .await;
+
+        let datetime = utils::get_city_time(&city.timezone).await;
+        if let Ok(datetime) = datetime {
+            msg::cmd(
+                msg_tx,
+                reply.clone(),
+                NAME.to_owned(),
+                msg::ACT_WORLDTIME.to_owned(),
+                vec![
+                    city.name.clone(),
+                    utils::convert_datetime(&datetime).unwrap(),
+                ],
+            )
+            .await;
+        } else {
+            msg::cmd(
+                msg_tx,
+                reply.clone(),
+                NAME.to_owned(),
+                msg::ACT_WORLDTIME.to_owned(),
+                vec![city.name.clone(), "n/a".to_owned()],
+            )
+            .await;
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Plugin {
@@ -36,32 +77,15 @@ impl Plugin {
         let cities = self.cities.clone();
         tokio::spawn(async move {
             loop {
-                for city in &cities {
-                    let datetime = utils::get_city_time(&city.timezone).await;
-                    if let Ok(datetime) = datetime {
-                        msg::cmd(
-                            &msg_tx_clone,
-                            Reply::Device(cfg::name()),
-                            NAME.to_owned(),
-                            msg::ACT_WORLDTIME.to_owned(),
-                            vec![
-                                city.name.clone(),
-                                utils::convert_datetime(&datetime).unwrap(),
-                            ],
-                        )
-                        .await;
-                    } else {
-                        msg::cmd(
-                            &msg_tx_clone,
-                            Reply::Device(cfg::name()),
-                            NAME.to_owned(),
-                            msg::ACT_WORLDTIME.to_owned(),
-                            vec![city.name.clone(), "n/a".to_owned()],
-                        )
-                        .await;
-                    }
-                }
+                log(
+                    &msg_tx_clone,
+                    Reply::Device(cfg::name()),
+                    Trace,
+                    format!("[{NAME}] polling."),
+                )
+                .await;
 
+                update_worldtime(&cities, &msg_tx_clone, Reply::Device(cfg::name()), Trace).await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(WORLDTIME_POLLING)).await;
             }
         });
@@ -80,33 +104,14 @@ impl Plugin {
         let cities = self.cities.clone();
         let reply_clone = cmd.reply.clone();
         tokio::spawn(async move {
-            for city in &cities {
-                let datetime = utils::get_city_time(&city.timezone).await;
-                if let Ok(datetime) = datetime {
-                    msg::cmd(
-                        &msg_tx_clone,
-                        Reply::Device(cfg::name()),
-                        NAME.to_owned(),
-                        msg::ACT_WORLDTIME.to_owned(),
-                        vec![
-                            city.name.clone(),
-                            utils::convert_datetime(&datetime).unwrap(),
-                        ],
-                    )
-                    .await;
-                } else {
-                    msg::cmd(
-                        &msg_tx_clone,
-                        Reply::Device(cfg::name()),
-                        NAME.to_owned(),
-                        msg::ACT_WORLDTIME.to_owned(),
-                        vec![city.name.clone(), "n/a".to_owned()],
-                    )
-                    .await;
-                }
-            }
-
-            log(&msg_tx_clone, reply_clone, Info, format!("[{NAME}] update")).await;
+            update_worldtime(&cities, &msg_tx_clone, reply_clone.clone(), Info).await;
+            log(
+                &msg_tx_clone,
+                reply_clone,
+                Info,
+                format!("[{NAME}] updated."),
+            )
+            .await;
         });
     }
 

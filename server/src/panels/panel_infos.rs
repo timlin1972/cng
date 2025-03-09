@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use chrono::{Datelike, NaiveDate};
-use log::Level::{Error, Trace};
+use log::Level::{Error, Info};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
+use unicode_width::UnicodeWidthChar;
 
 use crate::msg::{log, City, Data, DevInfo, Msg, Reply, Worldtime};
 use crate::panels::panels_main::{self, Popup};
@@ -17,7 +18,7 @@ h      - Help
 ⭠ / ⭢  - Change tab
 "#;
 const DEVICES_POLLING: u64 = 60;
-const TABS: usize = 6;
+const TABS: usize = 7;
 
 fn format_date(input: &str) -> String {
     let date = NaiveDate::parse_from_str(input, "%Y-%m-%d").expect("無法解析日期");
@@ -34,6 +35,7 @@ pub struct Panel {
     tab_index: usize,
     weather: Vec<City>,
     worldtime: Vec<Worldtime>,
+    stocks: Vec<utils::Stock>,
 }
 
 impl Panel {
@@ -63,6 +65,7 @@ impl Panel {
             tab_index: 0,
             weather: vec![],
             worldtime: vec![],
+            stocks: vec![],
         }
     }
 
@@ -313,6 +316,33 @@ impl Panel {
                         .push(format!("{:<12} {:<11}", city.name, city.datetime));
                 }
             }
+            6 => {
+                self.output.push(format!(
+                    "{:<4} {:<8} {:<18} {:<7} {:<12}  {:<7}  {:<7}",
+                    "Code", "Name", "Update", "Last", "Change", "Low", "High"
+                ));
+                for stock in &self.stocks {
+                    let mut info = String::new();
+
+                    let last_price = stock.last_price.parse::<f32>().unwrap_or(0.0);
+                    let high_price = stock.high_price.parse::<f32>().unwrap_or(0.0);
+                    let low_price = stock.low_price.parse::<f32>().unwrap_or(0.0);
+                    let prev_close = stock.prev_close.parse::<f32>().unwrap_or(0.0);
+                    let change = last_price - prev_close;
+                    let change_percent = if prev_close != 0.0 {
+                        change / prev_close * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    info.push_str(&format!("{:<4} {} ", stock.code, stock.name));
+                    let width: usize = stock.name.chars().map(|c| c.width().unwrap_or(0)).sum();
+                    info.push_str(" ".repeat(8 - width).as_str());
+                    info.push_str(&format!("{:<18} {last_price:<7.2} {change:>5.2} {change_percent:>5.2}%  {low_price:<7.2}  {high_price:<7.2}", stock.datetime));
+
+                    self.output.push(info.to_string());
+                }
+            }
             _ => {}
         }
     }
@@ -332,7 +362,7 @@ impl panels_main::Panel for Panel {
         log(
             &self.msg_tx,
             Reply::Device(cfg::name()),
-            Trace,
+            Info,
             format!("[{NAME}] init"),
         )
         .await;
@@ -377,6 +407,10 @@ impl panels_main::Panel for Panel {
             }
             Data::Worldtime(worldtime) => {
                 self.worldtime = worldtime.clone();
+                self.tab_refresh();
+            }
+            Data::Stocks(stocks) => {
+                self.stocks = stocks.clone();
                 self.tab_refresh();
             }
             _ => {

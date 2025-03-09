@@ -7,6 +7,7 @@ pub mod plugin_mqtt;
 pub mod plugin_nas;
 pub mod plugin_ping;
 pub mod plugin_shell;
+pub mod plugin_stocks;
 pub mod plugin_system;
 pub mod plugin_todos;
 pub mod plugin_weather;

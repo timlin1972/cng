@@ -252,6 +252,9 @@ impl Panels {
             Data::Worldtime(_worldtime) => {
                 self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
+            Data::Stocks(_stocks) => {
+                self.get_panel_mut(panel_infos::NAME).msg(msg).await;
+            }
             _ => {
                 log(
                     &self.msg_tx,

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap::Parser;
-use log::Level::{Error, Trace};
+use log::Level::{Error, Info};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
 
@@ -63,7 +63,7 @@ impl panels_main::Panel for Panel {
         log(
             &self.msg_tx,
             Reply::Device(cfg::name()),
-            Trace,
+            Info,
             format!("[{NAME}] init"),
         )
         .await;

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::Level::{Error, Info};
+use log::Level::{Error, Info, Trace};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
@@ -44,6 +44,29 @@ async fn update_weather(msg_tx: &Sender<Msg>, city_name: &str, weather: Weather)
         .await;
     }
 }
+
+async fn update_weather_all(
+    weather: &[City],
+    msg_tx: &Sender<Msg>,
+    reply: Reply,
+    log_level: log::Level,
+) {
+    for city in weather {
+        log(
+            msg_tx,
+            reply.clone(),
+            log_level,
+            format!("[{NAME}] update {}.", city.name),
+        )
+        .await;
+
+        let weather = utils::weather(city.latitude, city.longitude).await;
+        if let Ok(weather) = weather {
+            update_weather(msg_tx, &city.name, weather).await;
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Plugin {
     name: String,
@@ -122,13 +145,16 @@ impl Plugin {
         let weather = self.weather.clone();
         tokio::spawn(async move {
             loop {
-                for city in &weather {
-                    let weather = utils::weather(city.latitude, city.longitude).await;
-                    if let Ok(weather) = weather {
-                        update_weather(&msg_tx_clone, &city.name, weather).await;
-                    }
-                }
+                log(
+                    &msg_tx_clone,
+                    Reply::Device(cfg::name()),
+                    Trace,
+                    format!("[{NAME}] polling."),
+                )
+                .await;
 
+                update_weather_all(&weather, &msg_tx_clone, Reply::Device(cfg::name()), Trace)
+                    .await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(WEATHER_POLLING)).await;
             }
         });
@@ -223,13 +249,14 @@ impl Plugin {
         let weather = self.weather.clone();
         let reply_clone = cmd.reply.clone();
         tokio::spawn(async move {
-            for city in &weather {
-                let weather = utils::weather(city.latitude, city.longitude).await;
-                if let Ok(weather) = weather {
-                    update_weather(&msg_tx_clone, &city.name, weather).await;
-                }
-            }
-            log(&msg_tx_clone, reply_clone, Info, format!("[{NAME}] update")).await;
+            update_weather_all(&weather, &msg_tx_clone, reply_clone.clone(), Info).await;
+            log(
+                &msg_tx_clone,
+                reply_clone,
+                Info,
+                format!("[{NAME}] updated."),
+            )
+            .await;
         });
     }
 
