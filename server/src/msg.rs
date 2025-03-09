@@ -17,6 +17,7 @@ pub enum Data {
     Worldtime(Vec<Worldtime>),
     Cmd(Cmd),
     TailscaleIP(String),
+    Stocks(Vec<utils::Stock>),
 }
 
 #[derive(Debug)]
@@ -73,6 +74,7 @@ pub const ACT_WORLDTIME: &str = "worldtime";
 pub const ACT_HELP: &str = "help";
 pub const ACT_ADD: &str = "add";
 pub const ACT_NAS: &str = "nas";
+pub const ACT_STOCK: &str = "stock";
 
 #[derive(Debug, Clone)]
 pub enum Reply {
@@ -339,6 +341,17 @@ pub async fn tailscale_ip(msg_tx: &Sender<Msg>, tailscale_ip: &str) {
             ts: utils::ts(),
             plugin: plugin_nas::NAME.to_owned(),
             data: Data::TailscaleIP(tailscale_ip.to_owned()),
+        })
+        .await
+        .unwrap();
+}
+
+pub async fn stocks(msg_tx: &Sender<Msg>, stocks: Vec<utils::Stock>) {
+    msg_tx
+        .send(Msg {
+            ts: utils::ts(),
+            plugin: panels_main::NAME.to_owned(),
+            data: Data::Stocks(stocks),
         })
         .await
         .unwrap();

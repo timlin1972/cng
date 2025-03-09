@@ -31,6 +31,14 @@ pub fn ts_str_full(ts: u64) -> String {
     datetime_local.format("%Y-%m-%d %H:%M:%S %:z").to_string()
 }
 
+pub fn ts_str_short(ts: u64) -> String {
+    let datetime_local: DateTime<Local> = DateTime::from_timestamp(ts as i64, 0)
+        .unwrap()
+        .with_timezone(&Local);
+
+    datetime_local.format("%m-%d %H:%M:%S").to_string()
+}
+
 pub fn uptime() -> u64 {
     System::uptime()
 }
@@ -363,4 +371,90 @@ pub fn calculate_md5(path: &str) -> std::io::Result<String> {
 
     let digest = md5::compute(buffer);
     Ok(format!("{:x}", digest))
+}
+
+#[derive(Debug, Clone)]
+pub struct Stock {
+    pub code: String,
+    pub name: String,
+    pub last_price: String,
+    pub high_price: String,
+    pub low_price: String,
+    pub prev_close: String,
+    pub datetime: String,
+}
+
+impl Stock {
+    pub fn new(code: String) -> Self {
+        Self {
+            code,
+            name: "n/a".to_owned(),
+            last_price: "n/a".to_owned(),
+            high_price: "n/a".to_owned(),
+            low_price: "n/a".to_owned(),
+            prev_close: "n/a".to_owned(),
+            datetime: "n/a".to_owned(),
+        }
+    }
+}
+
+pub async fn get_stock_info(code: &str) -> Result<Stock, String> {
+    let response = match reqwest::Client::new()
+        .get(format!(
+            "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_{code}.tw"
+        ))
+        .timeout(tokio::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            return Err(format!("Failed to get stock_price: {e}"));
+        }
+    };
+
+    let response = match response.text().await {
+        Ok(response) => response,
+        Err(e) => {
+            return Err(format!("Failed to get stock_price: {e}"));
+        }
+    };
+
+    let response: serde_json::Value = match serde_json::from_str(&response) {
+        Ok(response) => response,
+        Err(e) => {
+            return Err(format!("Failed to get stock_price: {e}"));
+        }
+    };
+
+    let stock = response["msgArray"].get(0);
+    if stock.is_none() {
+        return Err("無此股票".to_owned());
+    }
+    let stock = stock.unwrap();
+
+    let name = stock["n"].as_str().unwrap_or("n/a"); //  股票名稱
+    let last_price = stock["z"].as_str().unwrap_or("n/a"); //  最新成交價
+                                                           // let open_price = stock["o"].as_str().unwrap_or("n/a");   //  開盤價
+    let high_price = stock["h"].as_str().unwrap_or("n/a"); //  最高價
+    let low_price = stock["l"].as_str().unwrap_or("n/a"); //  最低價
+    let prev_close = stock["y"].as_str().unwrap_or("n/a"); //  昨日收盤價
+                                                           // let volume = stock["v"].as_str().unwrap_or("n/a");       //  成交量
+                                                           // let time = stock["t"].as_str().unwrap_or("n/a");         //  最後成交時間
+
+    let datetime = format!(
+        "{} {}",
+        stock["d"].as_str().unwrap_or("n/a"),
+        stock["t"].as_str().unwrap_or("n/a")
+    );
+
+    Ok(Stock {
+        code: code.to_owned(),
+        name: name.to_owned(),
+        last_price: last_price.to_owned(),
+        high_price: high_price.to_owned(),
+        low_price: low_price.to_owned(),
+        prev_close: prev_close.to_owned(),
+        datetime: datetime.to_owned(),
+    })
 }

@@ -18,30 +18,49 @@ pub const NAME: &str = "panels";
 
 #[derive(Debug)]
 pub struct Popup {
-    pub show: bool,
     pub name: String,
     pub x: u16,
     pub y: u16,
-    pub text: String,
+    pub output: Vec<String>,
+    pub cursor_x: Option<usize>,
+    pub cursor_y: Option<usize>,
+}
+
+#[derive(Debug)]
+pub struct PanelInfo {
+    pub name: String,
+    pub input: String,
+    pub output: Vec<String>,
+    pub popup: Vec<Popup>,
+    pub active_popup_name: Option<String>,
+    pub msg_tx: Sender<Msg>,
+}
+
+impl PanelInfo {
+    pub fn new(name: &str, popup: Vec<Popup>, msg_tx: Sender<Msg>) -> Self {
+        Self {
+            name: name.to_owned(),
+            input: "".to_owned(),
+            output: vec![],
+            popup,
+            active_popup_name: None,
+            msg_tx,
+        }
+    }
 }
 
 #[async_trait]
 pub trait Panel {
-    fn name(&self) -> &str;
+    fn get_panel_info(&self) -> &PanelInfo;
     fn title(&self) -> String {
-        self.name().to_owned()
+        self.get_panel_info().name.to_owned()
     }
     async fn init(&mut self);
-    fn input(&self) -> &str;
-    fn output(&self) -> &Vec<String>;
-    fn output_clear(&mut self);
-    fn output_push(&mut self, output: String);
     async fn msg(&mut self, msg: &Msg);
     async fn key(&mut self, key: KeyEvent) -> bool;
     async fn run(&mut self, _cmd: &str) -> bool {
         false
     }
-    fn popup(&self) -> Option<&Popup>;
 }
 
 pub struct Panels {
@@ -81,6 +100,15 @@ impl Panels {
 
     fn next_window(&mut self) {
         self.active_panel = (self.active_panel + 1) % self.panels.len();
+    }
+
+    fn popup(&self) -> Option<&Popup> {
+        let panel_info = self.panels.get(self.active_panel).unwrap().get_panel_info();
+
+        match panel_info.active_popup_name {
+            None => None,
+            Some(ref name) => panel_info.popup.iter().find(|&p| &p.name == name),
+        }
     }
 
     pub fn draw(&self, frame: &mut Frame) {
@@ -130,7 +158,7 @@ impl Panels {
                     Style::default()
                 });
 
-            let area_height = match window.name() {
+            let area_height = match window.get_panel_info().name.as_str() {
                 panel_log::NAME => area_log.height,
                 panel_brief::NAME => area_brief.height,
                 panel_infos::NAME => area_info.height,
@@ -138,18 +166,19 @@ impl Panels {
                 _ => panic!(),
             };
 
-            let scroll_offset = if window.output().len() as u16 > (area_height - 2) {
-                window.output().len() as u16 - (area_height - 2)
+            let window_output_len = window.get_panel_info().output.len() as u16;
+            let scroll_offset = if window_output_len > (area_height - 2) {
+                window_output_len - (area_height - 2)
             } else {
                 0
             };
 
-            let paragraph = Paragraph::new(window.output().join("\n"))
+            let paragraph = Paragraph::new(window.get_panel_info().output.join("\n"))
                 .block(block)
                 .scroll((scroll_offset, 0));
             frame.render_widget(
                 paragraph,
-                match window.name() {
+                match window.get_panel_info().name.as_str() {
                     panel_log::NAME => area_log,
                     panel_brief::NAME => area_brief,
                     panel_infos::NAME => area_info,
@@ -160,54 +189,79 @@ impl Panels {
         }
 
         // Popup
-        let popup = self.panels.get(self.active_panel).unwrap().popup();
+        let popup = self.popup();
         if let Some(popup) = popup {
-            if popup.show {
-                let popup_area = centered_rect(popup.x, popup.y, frame.area());
+            let popup_area = centered_rect(popup.x, popup.y, frame.area());
 
-                frame.render_widget(Clear, popup_area);
+            frame.render_widget(Clear, popup_area);
 
-                let popup_block = Block::default()
-                    .borders(Borders::ALL)
-                    .title(popup.name.clone())
-                    .padding(ratatui::widgets::Padding::new(1, 1, 1, 1))
-                    .style(Style::default().bg(Color::Black).fg(Color::White));
-                frame.render_widget(popup_block.clone(), popup_area);
+            let popup_block = Block::default()
+                .borders(Borders::ALL)
+                .title(popup.name.clone())
+                .padding(ratatui::widgets::Padding::new(0, 0, 0, 0))
+                .style(Style::default().bg(Color::Black).fg(Color::White));
+            frame.render_widget(popup_block.clone(), popup_area);
 
-                let area_height = popup_area.height;
+            let area_height = popup_area.height;
 
-                let scroll_offset = if popup.text.lines().count() as u16 > (area_height - 2) {
-                    popup.text.lines().count() as u16 - (area_height - 2)
-                } else {
-                    0
-                };
-                let text = Paragraph::new(Text::from(popup.text.clone()))
-                    .style(Style::default().fg(Color::Yellow))
-                    .scroll((scroll_offset, 0));
+            let scroll_offset = if popup.output.len() as u16 > (area_height - 1) {
+                popup.output.len() as u16 - (area_height - 1)
+            } else {
+                0
+            };
+            let text = Paragraph::new(Text::from(popup.output.join("\n")))
+                .style(Style::default().fg(Color::Yellow))
+                .scroll((scroll_offset, 0));
 
-                frame.render_widget(text, popup_block.inner(popup_area));
+            frame.render_widget(text, popup_block.inner(popup_area));
+
+            if let Some(cursor_x) = popup.cursor_x {
+                if let Some(cursor_y) = popup.cursor_y {
+                    frame.set_cursor_position(Position::new(
+                        popup_area.x + cursor_x as u16 + 1,
+                        popup_area.y + cursor_y as u16 + 1,
+                    ));
+                }
             }
         }
 
         // Command
-        let input = self.panels.get(self.active_panel).unwrap().input();
+        let input = &self
+            .panels
+            .get(self.active_panel)
+            .unwrap()
+            .get_panel_info()
+            .input;
 
         let paragraph_command = Paragraph::new(format!("> {input}")).style(Style::default());
         frame.render_widget(paragraph_command, area_command);
 
-        frame.set_cursor_position(Position::new(
-            area_command.x + input.len() as u16 + 2,
-            area_command.y,
-        ));
+        // if popup is not shown or non-interactive panel, set cursor position to the end of the command line
+        if self.popup().is_none() {
+            frame.set_cursor_position(Position::new(
+                area_command.x + input.len() as u16 + 2,
+                area_command.y,
+            ));
+        }
     }
 
     pub async fn key(&mut self, key: KeyEvent) -> bool {
         let mut ret = false;
 
         match key.code {
-            KeyCode::Tab => {
-                self.next_window();
-            }
+            KeyCode::Tab => match self.popup().is_some() {
+                true => {
+                    ret = self
+                        .panels
+                        .get_mut(self.active_panel)
+                        .unwrap()
+                        .key(key)
+                        .await;
+                }
+                false => {
+                    self.next_window();
+                }
+            },
             _ => {
                 ret = self
                     .panels
@@ -224,7 +278,7 @@ impl Panels {
     fn get_panel_mut(&mut self, name: &str) -> &mut Box<dyn Panel> {
         self.panels
             .iter_mut()
-            .find(|p| p.name() == name)
+            .find(|p| p.get_panel_info().name == name)
             .unwrap_or_else(|| panic!("Panel not found: {}", name))
     }
 
@@ -250,6 +304,9 @@ impl Panels {
                 self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
             Data::Worldtime(_worldtime) => {
+                self.get_panel_mut(panel_infos::NAME).msg(msg).await;
+            }
+            Data::Stocks(_stocks) => {
                 self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
             _ => {
@@ -289,4 +346,15 @@ fn centered_rect(percent_x: u16, percent_y: u16, size: Rect) -> Rect {
             .as_ref(),
         )
         .split(popup_layout[1])[1]
+}
+
+// common utils for Panel
+
+const MAX_OUTPUT: usize = 512;
+
+pub fn output_push(panel_info_output: &mut Vec<String>, output: String) {
+    panel_info_output.push(output);
+    if panel_info_output.len() > MAX_OUTPUT {
+        panel_info_output.remove(0);
+    }
 }

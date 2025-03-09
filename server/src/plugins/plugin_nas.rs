@@ -906,6 +906,32 @@ impl Plugin {
             format!("[{NAME}] sync: {}", self.sync),
         )
         .await;
+
+        // show all files in cfg::FILE_FOLDER
+        let dir = Path::new(cfg::FILE_FOLDER);
+        if dir.is_dir() {
+            for entry in fs::read_dir(dir).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if path.is_file() {
+                    let metadata = entry.metadata().expect("無法讀取檔案元數據");
+                    let modified_time = metadata.modified().expect("無法獲取修改時間");
+                    let datetime: DateTime<Utc> = modified_time.into();
+
+                    log(
+                        &self.msg_tx,
+                        cmd.reply.clone(),
+                        Info,
+                        format!(
+                            "[{NAME}] {datetime} {filename}",
+                            filename = entry.file_name().to_string_lossy(),
+                            datetime = utils::ts_str_full(datetime.timestamp() as u64)
+                        ),
+                    )
+                    .await;
+                }
+            }
+        }
     }
 }
 

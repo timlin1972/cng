@@ -6,7 +6,7 @@ use crate::cfg;
 use crate::msg::{self, cmd, log, Cmd, Data, Msg, Reply};
 use crate::plugins::{
     plugin_devices, plugin_file, plugin_log, plugin_mqtt, plugin_nas, plugin_ping, plugin_shell,
-    plugin_system, plugin_todos, plugin_weather, plugin_wol, plugin_worldtime,
+    plugin_stocks, plugin_system, plugin_todos, plugin_weather, plugin_wol, plugin_worldtime,
 };
 
 pub const NAME: &str = "plugins";
@@ -37,6 +37,7 @@ impl Plugins {
             Box::new(plugin_worldtime::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
             Box::new(plugin_todos::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
             Box::new(plugin_nas::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
+            Box::new(plugin_stocks::Plugin::new(msg_tx.clone())) as Box<dyn Plugin>,
         ];
 
         Self { plugins, msg_tx }

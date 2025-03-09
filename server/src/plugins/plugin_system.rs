@@ -8,7 +8,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.2.7";
+const VERSION: &str = "0.3.0";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -58,6 +58,101 @@ fn get_disk_usage() -> f32 {
     }
 
     ((total_space - available_space) * 100 / total_space) as f32
+}
+
+async fn update_system(msg_tx: &Sender<Msg>, reply: Reply) {
+    // tailscale ip
+    let tailscale_ip = utils::get_tailscale_ip();
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE_ITEM.to_owned(),
+        vec!["tailscale_ip".to_owned(), tailscale_ip.clone()],
+    )
+    .await;
+    msg::tailscale_ip(msg_tx, &tailscale_ip).await;
+
+    // weather
+    let weather = utils::device_weather().await;
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE_ITEM.to_owned(),
+        vec!["weather".to_owned(), weather],
+    )
+    .await;
+
+    // temperature
+    let temperature = get_temperature();
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE_ITEM.to_owned(),
+        vec!["temperature".to_owned(), temperature.to_string()],
+    )
+    .await;
+
+    let os = get_os();
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE_ITEM.to_owned(),
+        vec!["os".to_owned(), os],
+    )
+    .await;
+
+    let cpu_arch = get_cpu_arch();
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE_ITEM.to_owned(),
+        vec!["cpu_arch".to_owned(), cpu_arch],
+    )
+    .await;
+
+    let cpu_usage = get_cpu_usage();
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE_ITEM.to_owned(),
+        vec!["cpu_usage".to_owned(), cpu_usage.to_string()],
+    )
+    .await;
+
+    let memory_usage = get_memory_usage();
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE_ITEM.to_owned(),
+        vec!["memory_usage".to_owned(), memory_usage.to_string()],
+    )
+    .await;
+
+    let disk_usage = get_disk_usage();
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE_ITEM.to_owned(),
+        vec!["disk_usage".to_owned(), disk_usage.to_string()],
+    )
+    .await;
+
+    msg::cmd(
+        msg_tx,
+        reply.clone(),
+        NAME.to_owned(),
+        msg::ACT_UPDATE.to_owned(),
+        vec![],
+    )
+    .await;
 }
 
 #[derive(Debug)]
@@ -117,99 +212,7 @@ impl Plugin {
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
             loop {
-                // tailscale ip
-                let tailscale_ip = utils::get_tailscale_ip();
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE_ITEM.to_owned(),
-                    vec!["tailscale_ip".to_owned(), tailscale_ip.clone()],
-                )
-                .await;
-                msg::tailscale_ip(&msg_tx_clone, &tailscale_ip).await;
-
-                // weather
-                let weather = utils::device_weather().await;
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE_ITEM.to_owned(),
-                    vec!["weather".to_owned(), weather],
-                )
-                .await;
-
-                // temperature
-                let temperature = get_temperature();
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE_ITEM.to_owned(),
-                    vec!["temperature".to_owned(), temperature.to_string()],
-                )
-                .await;
-
-                let os = get_os();
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE_ITEM.to_owned(),
-                    vec!["os".to_owned(), os],
-                )
-                .await;
-
-                let cpu_arch = get_cpu_arch();
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE_ITEM.to_owned(),
-                    vec!["cpu_arch".to_owned(), cpu_arch],
-                )
-                .await;
-
-                let cpu_usage = get_cpu_usage();
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE_ITEM.to_owned(),
-                    vec!["cpu_usage".to_owned(), cpu_usage.to_string()],
-                )
-                .await;
-
-                let memory_usage = get_memory_usage();
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE_ITEM.to_owned(),
-                    vec!["memory_usage".to_owned(), memory_usage.to_string()],
-                )
-                .await;
-
-                let disk_usage = get_disk_usage();
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE_ITEM.to_owned(),
-                    vec!["disk_usage".to_owned(), disk_usage.to_string()],
-                )
-                .await;
-
-                msg::cmd(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    NAME.to_owned(),
-                    msg::ACT_UPDATE.to_owned(),
-                    vec![],
-                )
-                .await;
-
+                update_system(&msg_tx_clone, Reply::Device(cfg::name())).await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(ONBOARD_POLLING)).await;
             }
         });

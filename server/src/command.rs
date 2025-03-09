@@ -5,28 +5,9 @@ use crate::cfg;
 use crate::msg::{self, Msg, Reply};
 
 pub const UNKNOWN_COMMAND: &str = "Unknown command. Input 'h' for help.";
-pub const HELP_TEXT: &str = r#"Commands:
-    h    - Help
-    q    - Quit
-
-    p <plugin> <action> ...
-        plugin: plugins, device, log, ...
-                use 'p plugins show' to get plugin list
-        action: init, show, action
-    Example:
-        p plugins show
-        p devices show
-        p devices show pi5
-        p mqtt show
-        p mqtt ask pi5 p wol wake linds
-        p mqtt ask pi5 p system quit
-        p wol wake linds
-        p ping ping www.google.com
-        p shell start
-        p shell cmd "pwd"
-        p shell stop
-"#;
 pub const ALL_TEXT: &str = "All";
+pub const EDITOR_TEXT: &str = "Editor, which is not supported in CLI mode.";
+
 #[derive(Parser, Debug)]
 #[command(
     name = "Center NG",
@@ -44,11 +25,38 @@ pub enum Commands {
     H,
     Q,
     A,
+    E {
+        filename: Option<String>,
+    },
     P {
         plugin: String,
         action: String,
         data: Vec<String>,
     },
+}
+
+pub fn get_help() -> Vec<String> {
+    vec![
+        "Commands:".to_owned(),
+        "h    - Help".to_owned(),
+        "q    - Quit".to_owned(),
+        "p <plugin> <action> ...".to_owned(),
+        "    plugin: plugins, device, log, ...".to_owned(),
+        "            use 'p plugins show' to get plugin list".to_owned(),
+        "    action: init, show, action".to_owned(),
+        "Example:".to_owned(),
+        "    p plugins show".to_owned(),
+        "    p devices show".to_owned(),
+        "    p devices show pi5".to_owned(),
+        "    p mqtt show".to_owned(),
+        "    p mqtt ask pi5 p wol wake linds".to_owned(),
+        "    p mqtt ask pi5 p system quit".to_owned(),
+        "    p wol wake linds".to_owned(),
+        "    p ping ping www.google.com".to_owned(),
+        "    p shell start".to_owned(),
+        "    p shell cmd \"pwd\"".to_owned(),
+        "    p shell stop".to_owned(),
+    ]
 }
 
 pub async fn run(msg_tx: &Sender<Msg>, cmd: &str) -> bool {
@@ -66,13 +74,16 @@ pub async fn run(msg_tx: &Sender<Msg>, cmd: &str) -> bool {
 
     match cli.command {
         Some(Commands::H) => {
-            println!("{HELP_TEXT}");
+            println!("{}", get_help().join("\n")); // cli mode
         }
         Some(Commands::A) => {
-            println!("{ALL_TEXT}");
+            println!("{ALL_TEXT}"); // cli mode
+        }
+        Some(Commands::E { filename: _ }) => {
+            println!("{EDITOR_TEXT}"); // cli mode
         }
         Some(Commands::Q) => {
-            println!("Exiting...");
+            println!("Exiting..."); // cli mode
             ret = true;
         }
         Some(Commands::P {

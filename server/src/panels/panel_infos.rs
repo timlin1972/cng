@@ -1,23 +1,21 @@
 use async_trait::async_trait;
 use chrono::{Datelike, NaiveDate};
-use log::Level::{Error, Trace};
+use log::Level::{Error, Info};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::Sender;
+use unicode_width::UnicodeWidthChar;
 
 use crate::msg::{log, City, Data, DevInfo, Msg, Reply, Worldtime};
-use crate::panels::panels_main::{self, Popup};
+use crate::panels::panels_main::{self, PanelInfo, Popup};
 use crate::utils;
 use crate::{cfg, msg};
 
 pub const NAME: &str = "Infos";
+
 const POPUP_ALL: &str = "All";
 const POPUP_HELP: &str = "Help";
-const HELP_TEXT: &str = r#"
-h      - Help
-⭠ / ⭢  - Change tab
-"#;
 const DEVICES_POLLING: u64 = 60;
-const TABS: usize = 6;
+const TABS: usize = 7;
 
 fn format_date(input: &str) -> String {
     let date = NaiveDate::parse_from_str(input, "%Y-%m-%d").expect("無法解析日期");
@@ -25,53 +23,61 @@ fn format_date(input: &str) -> String {
 }
 #[derive(Debug)]
 pub struct Panel {
-    name: String,
-    input: String,
-    output: Vec<String>,
-    popup: Vec<Popup>,
-    msg_tx: Sender<Msg>,
+    panel_info: PanelInfo,
     devices: Vec<DevInfo>,
     tab_index: usize,
     weather: Vec<City>,
     worldtime: Vec<Worldtime>,
+    stocks: Vec<utils::Stock>,
 }
 
 impl Panel {
     pub fn new(msg_tx: Sender<Msg>) -> Self {
-        Self {
-            name: NAME.to_owned(),
-            input: "".to_owned(),
-            output: vec![],
-            popup: vec![
+        let help_text: Vec<String> = vec![
+            "Commands:".to_owned(),
+            "h    - Help".to_owned(),
+            "⭠ / ⭢  - Change tab".to_owned(),
+        ];
+
+        let panel_info = PanelInfo::new(
+            NAME,
+            vec![
                 Popup {
-                    show: false,
                     name: POPUP_HELP.to_owned(),
                     x: 50,
                     y: 30,
-                    text: HELP_TEXT.to_owned(),
+                    output: help_text,
+                    cursor_x: None,
+                    cursor_y: None,
                 },
                 Popup {
-                    show: false,
                     name: POPUP_ALL.to_owned(),
                     x: 100,
                     y: 80,
-                    text: "".to_owned(),
+                    output: vec![],
+                    cursor_x: None,
+                    cursor_y: None,
                 },
             ],
             msg_tx,
+        );
+
+        Self {
+            panel_info,
             devices: vec![],
             tab_index: 0,
             weather: vec![],
             worldtime: vec![],
+            stocks: vec![],
         }
     }
 
     pub fn tab_refresh(&mut self) {
-        self.output.clear();
+        self.panel_info.output.clear();
 
         match self.tab_index {
             0 => {
-                self.output.push(format!(
+                self.panel_info.output.push(format!(
                     "{:<12} {:<7} {:<10} {:18} {:14} {:9} {:10} {:<7} {:<11} {:<10}",
                     "Name",
                     "Onboard",
@@ -84,6 +90,7 @@ impl Panel {
                     "Last update",
                     "Countdown"
                 ));
+
                 for device in self.devices.iter() {
                     // onboard
                     let onboard = if let Some(t) = device.onboard {
@@ -148,7 +155,7 @@ impl Panel {
                         }
                     };
 
-                    self.output.push(format!(
+                    self.panel_info.output.push(format!(
                         "{:<12} {onboard:<7} {version:<10} {os:<18} {cpu:14} {memory_usage:9} {disk_usage:10} {temperature:<7} {:<11} {countdown:<10}",
                         device.name,
                         utils::ts_str(device.ts),
@@ -156,7 +163,7 @@ impl Panel {
                 }
             }
             1 => {
-                self.output.push(format!(
+                self.panel_info.output.push(format!(
                     "{:<12} {:<7} {:13} {:13} {:16}",
                     "Name", "Onboard", "App uptime", "Host uptime", "Tailscale IP"
                 ));
@@ -186,7 +193,7 @@ impl Panel {
                         "n/a".to_owned()
                     };
 
-                    self.output.push(format!(
+                    self.panel_info.output.push(format!(
                         "{:<12} {onboard:<7} {app_uptime:13} {host_uptime:13} {:16}",
                         device.name,
                         device.tailscale_ip.clone().unwrap_or("n/a".to_owned())
@@ -194,7 +201,7 @@ impl Panel {
                 }
             }
             2 => {
-                self.output.push(format!(
+                self.panel_info.output.push(format!(
                     "{:<12} {:<7} {:<27} {:64}",
                     "Name", "Onboard", "Last seen", "Weather"
                 ));
@@ -224,7 +231,7 @@ impl Panel {
                         "n/a".to_owned()
                     };
 
-                    self.output.push(format!(
+                    self.panel_info.output.push(format!(
                         "{:<12} {onboard:<7} {last_seen:<27} {weather:64}",
                         device.name,
                         onboard = onboard,
@@ -234,7 +241,7 @@ impl Panel {
                 }
             }
             3 => {
-                self.output.push(format!(
+                self.panel_info.output.push(format!(
                     "{:<12} {:<11} {:7} {:20}",
                     "City", "Update", "Temp", "Weather"
                 ));
@@ -248,7 +255,7 @@ impl Panel {
                         None => ("n/a".to_owned(), "n/a".to_owned(), "n/a".to_owned()),
                     };
 
-                    self.output.push(format!(
+                    self.panel_info.output.push(format!(
                         "{:<12} {update:<11} {temperature:7} {weather:20}",
                         city.name
                     ));
@@ -271,7 +278,7 @@ impl Panel {
                     }
                     title.push_str(&format!("{:<27} ", format_date(&daily.time)));
                 }
-                self.output.push(title);
+                self.panel_info.output.push(title);
 
                 for city in &self.weather {
                     if let Some(weather) = &city.weather {
@@ -301,16 +308,47 @@ impl Panel {
                             info.push_str(" ".repeat(13 - weather.len() * 2 / 3).as_str());
                         }
 
-                        self.output.push(format!("{:<12} {info}", city.name));
+                        self.panel_info
+                            .output
+                            .push(format!("{:<12} {info}", city.name));
                     }
                 }
             }
             5 => {
-                self.output
+                self.panel_info
+                    .output
                     .push(format!("{:<12} {:<11}", "City", "Datetime"));
                 for city in &self.worldtime {
-                    self.output
+                    self.panel_info
+                        .output
                         .push(format!("{:<12} {:<11}", city.name, city.datetime));
+                }
+            }
+            6 => {
+                self.panel_info.output.push(format!(
+                    "{:<4} {:<8} {:<18} {:<7} {:<12}  {:<7}  {:<7}",
+                    "Code", "Name", "Update", "Last", "Change", "Low", "High"
+                ));
+                for stock in &self.stocks {
+                    let mut info = String::new();
+
+                    let last_price = stock.last_price.parse::<f32>().unwrap_or(0.0);
+                    let high_price = stock.high_price.parse::<f32>().unwrap_or(0.0);
+                    let low_price = stock.low_price.parse::<f32>().unwrap_or(0.0);
+                    let prev_close = stock.prev_close.parse::<f32>().unwrap_or(0.0);
+                    let change = last_price - prev_close;
+                    let change_percent = if prev_close != 0.0 {
+                        change / prev_close * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    info.push_str(&format!("{:<4} {} ", stock.code, stock.name));
+                    let width: usize = stock.name.chars().map(|c| c.width().unwrap_or(0)).sum();
+                    info.push_str(" ".repeat(8 - width).as_str());
+                    info.push_str(&format!("{:<18} {last_price:<7.2} {change:>5.2} {change_percent:>5.2}%  {low_price:<7.2}  {high_price:<7.2}", stock.datetime));
+
+                    self.panel_info.output.push(info.to_string());
                 }
             }
             _ => {}
@@ -320,46 +358,30 @@ impl Panel {
 
 #[async_trait]
 impl panels_main::Panel for Panel {
-    fn name(&self) -> &str {
-        self.name.as_str()
+    fn get_panel_info(&self) -> &PanelInfo {
+        &self.panel_info
     }
 
     fn title(&self) -> String {
-        format!("{} - {}/{TABS}", self.name, self.tab_index + 1)
+        format!("{} - {}/{TABS}", self.panel_info.name, self.tab_index + 1)
     }
 
     async fn init(&mut self) {
         log(
-            &self.msg_tx,
+            &self.panel_info.msg_tx,
             Reply::Device(cfg::name()),
-            Trace,
+            Info,
             format!("[{NAME}] init"),
         )
         .await;
 
-        let msg_tx_clone = self.msg_tx.clone();
+        let msg_tx_clone = self.panel_info.msg_tx.clone();
         tokio::spawn(async move {
             loop {
                 msg::device_countdown(&msg_tx_clone).await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(DEVICES_POLLING)).await;
             }
         });
-    }
-
-    fn input(&self) -> &str {
-        self.input.as_str()
-    }
-
-    fn output(&self) -> &Vec<String> {
-        &self.output
-    }
-
-    fn output_clear(&mut self) {
-        self.output.clear();
-    }
-
-    fn output_push(&mut self, output: String) {
-        self.output.push(output);
     }
 
     async fn msg(&mut self, msg: &Msg) {
@@ -379,9 +401,13 @@ impl panels_main::Panel for Panel {
                 self.worldtime = worldtime.clone();
                 self.tab_refresh();
             }
+            Data::Stocks(stocks) => {
+                self.stocks = stocks.clone();
+                self.tab_refresh();
+            }
             _ => {
                 log(
-                    &self.msg_tx,
+                    &self.panel_info.msg_tx,
                     Reply::Device(cfg::name()),
                     Error,
                     format!("[{NAME}] unknown msg: {msg:?}"),
@@ -392,26 +418,12 @@ impl panels_main::Panel for Panel {
     }
 
     async fn key(&mut self, key: KeyEvent) -> bool {
-        let is_show = self.popup.iter().any(|p| p.show);
-
-        match is_show {
-            true => {
-                for p in &mut self.popup {
-                    p.show = false;
-                }
-            }
-            #[allow(clippy::single_match)]
+        match self.panel_info.active_popup_name.is_some() {
+            true => self.panel_info.active_popup_name = None,
             false => match key.code {
-                KeyCode::Char('q') => {
-                    return true;
-                }
+                KeyCode::Char('q') => return true,
                 KeyCode::Char('h') => {
-                    for p in &mut self.popup {
-                        if p.name == POPUP_HELP {
-                            p.show = true;
-                            break;
-                        }
-                    }
+                    self.panel_info.active_popup_name = Some(POPUP_HELP.to_owned());
                 }
                 KeyCode::Right => {
                     self.tab_index = (self.tab_index + 1) % TABS;
@@ -422,22 +434,20 @@ impl panels_main::Panel for Panel {
                     self.tab_refresh();
                 }
                 KeyCode::Char('a') => {
-                    for p in &mut self.popup {
-                        if p.name == POPUP_ALL {
-                            p.show = true;
-                            p.text = self.output.join("\n");
-                            break;
-                        }
-                    }
+                    self.panel_info.active_popup_name = Some(POPUP_ALL.to_owned());
+                    let active_popup = self
+                        .panel_info
+                        .popup
+                        .iter_mut()
+                        .find(|p| p.name == POPUP_ALL)
+                        .unwrap();
+
+                    active_popup.output = self.panel_info.output.clone();
                 }
                 _ => {}
             },
         }
 
         false
-    }
-
-    fn popup(&self) -> Option<&Popup> {
-        self.popup.iter().find(|&p| p.show)
     }
 }
