@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::Level::{Error, Info, Trace};
+use log::Level::{Error, Info};
 use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
@@ -136,7 +136,7 @@ impl Plugin {
         log(
             &self.msg_tx,
             Reply::Device(cfg::name()),
-            Trace,
+            Info,
             format!("[{NAME}] init"),
         )
         .await;

@@ -6,6 +6,7 @@ use crate::panels::panels_main;
 use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt, plugin_nas};
 use crate::utils;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Data {
     Log(Log),
@@ -104,6 +105,8 @@ pub struct DevInfo {
     pub os: Option<String>,
     pub cpu_arch: Option<String>,
     pub cpu_usage: Option<f32>,
+    pub memory_usage: Option<f32>,
+    pub disk_usage: Option<f32>,
     pub weather: Option<String>,
     pub last_seen: Option<u64>,
     pub tailscale_ip: Option<String>,

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::Level::{Error, Info, Trace};
+use log::Level::{Error, Info};
 use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 
@@ -8,7 +8,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.2.6";
+const VERSION: &str = "0.2.7";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -41,6 +41,25 @@ fn get_cpu_usage() -> f32 {
     s.global_cpu_usage()
 }
 
+fn get_memory_usage() -> f32 {
+    let s = sysinfo::System::new_all();
+    let total_memory = s.total_memory();
+    let used_memory = total_memory - s.available_memory();
+    (used_memory * 100 / total_memory) as f32
+}
+
+fn get_disk_usage() -> f32 {
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let mut available_space = 0;
+    let mut total_space = 0;
+    for disk in disks.list() {
+        available_space += disk.available_space();
+        total_space += disk.total_space();
+    }
+
+    ((total_space - available_space) * 100 / total_space) as f32
+}
+
 #[derive(Debug)]
 struct Device {
     name: String,
@@ -49,6 +68,8 @@ struct Device {
     os: String,
     cpu_arch: String,
     cpu_usage: f32,
+    memory_usage: f32,
+    disk_usage: f32,
     ts_start: u64,
     tailscale_ip: String,
 }
@@ -79,6 +100,8 @@ impl Plugin {
             os: "n/a".to_owned(),
             cpu_arch: "n/a".to_owned(),
             cpu_usage: 0.0,
+            memory_usage: 0.0,
+            disk_usage: 0.0,
             ts_start: utils::uptime(),
             tailscale_ip: "n/a".to_owned(),
         };
@@ -158,6 +181,26 @@ impl Plugin {
                 )
                 .await;
 
+                let memory_usage = get_memory_usage();
+                msg::cmd(
+                    &msg_tx_clone,
+                    Reply::Device(cfg::name()),
+                    NAME.to_owned(),
+                    msg::ACT_UPDATE_ITEM.to_owned(),
+                    vec!["memory_usage".to_owned(), memory_usage.to_string()],
+                )
+                .await;
+
+                let disk_usage = get_disk_usage();
+                msg::cmd(
+                    &msg_tx_clone,
+                    Reply::Device(cfg::name()),
+                    NAME.to_owned(),
+                    msg::ACT_UPDATE_ITEM.to_owned(),
+                    vec!["disk_usage".to_owned(), disk_usage.to_string()],
+                )
+                .await;
+
                 msg::cmd(
                     &msg_tx_clone,
                     Reply::Device(cfg::name()),
@@ -174,7 +217,7 @@ impl Plugin {
         log(
             &self.msg_tx,
             Reply::Device(cfg::name()),
-            Trace,
+            Info,
             format!("[{NAME}] init"),
         )
         .await;
@@ -261,6 +304,24 @@ impl Plugin {
                 )
                 .await;
 
+                // memory usage
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] Memory Usage: {:.1}%", get_memory_usage()),
+                )
+                .await;
+
+                // disk usage
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] Disk Usage: {:.1}%", get_disk_usage()),
+                )
+                .await;
+
                 // weather
                 log(
                     &self.msg_tx,
@@ -309,6 +370,14 @@ impl Plugin {
             "cpu_usage" => {
                 let cpu_usage = cmd.data.get(1).unwrap().parse::<f32>().unwrap_or(0.0);
                 self.device.cpu_usage = cpu_usage;
+            }
+            "memory_usage" => {
+                let memory_usage = cmd.data.get(1).unwrap().parse::<f32>().unwrap_or(0.0);
+                self.device.memory_usage = memory_usage;
+            }
+            "disk_usage" => {
+                let disk_usage = cmd.data.get(1).unwrap().parse::<f32>().unwrap_or(0.0);
+                self.device.disk_usage = disk_usage;
             }
             _ => {
                 log(
@@ -435,6 +504,34 @@ impl Plugin {
                 "cpu_usage".to_owned(),
                 "false".to_owned(),
                 self.device.cpu_usage.to_string(),
+            ],
+        )
+        .await;
+
+        // memory usage
+        msg::cmd(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            plugin_mqtt::NAME.to_owned(),
+            msg::ACT_PUBLISH.to_owned(),
+            vec![
+                "memory_usage".to_owned(),
+                "false".to_owned(),
+                self.device.memory_usage.to_string(),
+            ],
+        )
+        .await;
+
+        // disk usage
+        msg::cmd(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            plugin_mqtt::NAME.to_owned(),
+            msg::ACT_PUBLISH.to_owned(),
+            vec![
+                "disk_usage".to_owned(),
+                "false".to_owned(),
+                self.device.disk_usage.to_string(),
             ],
         )
         .await;

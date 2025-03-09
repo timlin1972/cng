@@ -343,7 +343,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
     let topic = &publish.topic;
 
     let re = regex::Regex::new(
-        r"^tln/([^/]+)/(onboard|app_uptime|host_uptime|version|temperature|weather|tailscale_ip|os|cpu_arch|cpu_usage)$",
+        r"^tln/([^/]+)/(onboard|app_uptime|host_uptime|version|temperature|weather|tailscale_ip|os|cpu_arch|cpu_usage|memory_usage|disk_usage)$",
     )
     .unwrap();
     if let Some(captures) = re.captures(topic) {
@@ -362,6 +362,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
             os,
             cpu_arch,
             cpu_usage,
+            memory_usage,
+            disk_usage,
         ) = match key {
             "onboard" => {
                 let onboard = match payload.parse::<u64>() {
@@ -402,6 +404,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     None,
                     None,
                     None,
+                    None,
+                    None,
                 )
             }
             "app_uptime" => {
@@ -421,6 +425,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 (
                     None,
                     Some(app_uptime),
+                    None,
+                    None,
                     None,
                     None,
                     None,
@@ -456,6 +462,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     None,
                     None,
                     None,
+                    None,
+                    None,
                 )
             }
             "version" => (
@@ -463,6 +471,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 None,
                 None,
                 Some(payload.to_owned()),
+                None,
+                None,
                 None,
                 None,
                 None,
@@ -495,6 +505,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     None,
                     None,
                     None,
+                    None,
+                    None,
                 )
             }
             "weather" => (
@@ -504,6 +516,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 None,
                 None,
                 Some(payload.to_owned()),
+                None,
+                None,
                 None,
                 None,
                 None,
@@ -520,6 +534,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 None,
                 None,
                 None,
+                None,
+                None,
             ),
             "os" => (
                 None,
@@ -530,6 +546,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 None,
                 None,
                 Some(payload.to_owned()),
+                None,
+                None,
                 None,
                 None,
             ),
@@ -543,6 +561,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 None,
                 None,
                 Some(payload.to_owned()),
+                None,
+                None,
                 None,
             ),
             "cpu_usage" => {
@@ -570,6 +590,66 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                     None,
                     None,
                     Some(cpu_usage),
+                    None,
+                    None,
+                )
+            }
+            "memory_usage" => {
+                let memory_usage = match payload.parse::<f32>() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log(
+                            msg_tx,
+                            Reply::Device(cfg::name()),
+                            Error,
+                            format!("[{NAME}] Error: <- publish::memory_usage: {name}: Wrong memory_usage: {payload}: {e:?}."),
+                        )
+                        .await;
+                        return true;
+                    }
+                };
+                (
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(memory_usage),
+                    None,
+                )
+            }
+            "disk_usage" => {
+                let disk_usage = match payload.parse::<f32>() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log(
+                            msg_tx,
+                            Reply::Device(cfg::name()),
+                            Error,
+                            format!("[{NAME}] Error: <- publish::disk_usage: {name}: Wrong disk_usage: {payload}: {e:?}."),
+                        )
+                        .await;
+                        return true;
+                    }
+                };
+                (
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(disk_usage),
                 )
             }
             _ => {
@@ -592,7 +672,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
         )
         .await;
 
-        // update the last seen if onboard is true OR any of uptime, version, temperature, os, cpu_arch, cpu_usage, weather is not None
+        // update the last seen if onboard is true OR any of uptime, version, temperature, os, cpu_arch, cpu_usage, memory_usage, disk_usage, weather is not None
         let last_seen = if (onboard.is_some() && onboard.unwrap())
             || app_uptime.is_some()
             || host_uptime.is_some()
@@ -601,6 +681,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
             || os.is_some()
             || cpu_arch.is_some()
             || cpu_usage.is_some()
+            || memory_usage.is_some()
+            || disk_usage.is_some()
             || weather.is_some()
             || tailscale_ip.is_some()
         {
@@ -622,6 +704,8 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 os,
                 cpu_arch,
                 cpu_usage,
+                memory_usage,
+                disk_usage,
                 weather,
                 last_seen,
                 tailscale_ip,

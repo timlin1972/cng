@@ -72,12 +72,14 @@ impl Panel {
         match self.tab_index {
             0 => {
                 self.output.push(format!(
-                    "{:<12} {:<7} {:<10} {:8} {:14} {:<7} {:<11} {:<10}",
+                    "{:<12} {:<7} {:<10} {:18} {:14} {:9} {:10} {:<7} {:<11} {:<10}",
                     "Name",
                     "Onboard",
                     "Version",
                     "OS",
                     "CPU Arch/Usage",
+                    "Mem Usage",
+                    "Disk Usage",
                     "Temp",
                     "Last update",
                     "Countdown"
@@ -113,6 +115,20 @@ impl Panel {
                         "n/a".to_owned()
                     };
 
+                    // memory
+                    let memory_usage = if let Some(t) = device.memory_usage {
+                        format!("{:.1}%", t)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    // disk
+                    let disk_usage = if let Some(t) = device.disk_usage {
+                        format!("{:.1}%", t)
+                    } else {
+                        "n/a".to_owned()
+                    };
+
                     // temperature
                     let temperature = if let Some(t) = device.temperature {
                         format!("{:.1}°C", t)
@@ -133,7 +149,7 @@ impl Panel {
                     };
 
                     self.output.push(format!(
-                        "{:<12} {onboard:<7} {version:<10} {os:<8} {cpu:14} {temperature:<7} {:<11} {countdown:<10}",
+                        "{:<12} {onboard:<7} {version:<10} {os:<18} {cpu:14} {memory_usage:9} {disk_usage:10} {temperature:<7} {:<11} {countdown:<10}",
                         device.name,
                         utils::ts_str(device.ts),
                     ));

@@ -111,6 +111,12 @@ impl Plugin {
             if device.cpu_usage.is_some() {
                 d.cpu_usage = device.cpu_usage;
             }
+            if device.memory_usage.is_some() {
+                d.memory_usage = device.memory_usage;
+            }
+            if device.disk_usage.is_some() {
+                d.disk_usage = device.disk_usage;
+            }
             if device.weather.is_some() {
                 d.weather = device.weather.clone();
             }
@@ -128,6 +134,8 @@ impl Plugin {
                 d.os = None;
                 d.cpu_arch = None;
                 d.cpu_usage = None;
+                d.memory_usage = None;
+                d.disk_usage = None;
                 d.weather = None;
                 // d.last_seen = None;  // keep last_seen
             }
@@ -318,6 +326,34 @@ impl Plugin {
             cmd.reply.clone(),
             Info,
             format!("    CPU Usage: {cpu_usage}"),
+        )
+        .await;
+
+        // memory usage
+        let memory_usage = if let Some(t) = device.memory_usage {
+            format!("{:.1}%", t)
+        } else {
+            "n/a".to_owned()
+        };
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    Memory Usage: {memory_usage}"),
+        )
+        .await;
+
+        // disk usage
+        let disk_usage = if let Some(t) = device.disk_usage {
+            format!("{:.1}%", t)
+        } else {
+            "n/a".to_owned()
+        };
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    Disk Usage: {disk_usage}"),
         )
         .await;
 

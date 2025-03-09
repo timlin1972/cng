@@ -20,7 +20,7 @@ pub const KEY_SIZE: usize = 32;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::panic::set_hook(Box::new(|info| {
         eprintln!("Panic occurred: {:?}", info);
-        std::process::exit(1); // 立即退出程序
+        std::process::exit(1);
     }));
 
     let (msg_tx, msg_rx) = mpsc::channel(MSG_SIZE);
@@ -51,6 +51,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    std::process::exit(1); //  workaround
+    std::process::exit(0); //  workaround
                            // _app_result
 }

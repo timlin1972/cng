@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::Level::{Error, Info, Trace};
+use log::Level::{Error, Info};
 use rumqttc::{AsyncClient, LastWill, MqttOptions, QoS};
 use tokio::sync::mpsc::Sender;
 
@@ -32,7 +32,7 @@ impl Plugin {
         log(
             &self.msg_tx,
             Reply::Device(cfg::name()),
-            Trace,
+            Info,
             format!("[{NAME}] init"),
         )
         .await;
@@ -40,7 +40,7 @@ impl Plugin {
         log(
             &self.msg_tx,
             Reply::Device(cfg::name()),
-            Trace,
+            Info,
             format!("[{NAME}] Connecting to MQTT broker"),
         )
         .await;
@@ -67,7 +67,7 @@ impl Plugin {
             log(
                 &msg_tx_clone,
                 Reply::Device(cfg::name()),
-                Trace,
+                Info,
                 format!("[{NAME}] Start to receive mqtt message."),
             )
             .await;
