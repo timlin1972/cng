@@ -1,10 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::aead::{generic_array::GenericArray, Aead, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Nonce}; // Or `Aes128Gcm`
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, Local};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
