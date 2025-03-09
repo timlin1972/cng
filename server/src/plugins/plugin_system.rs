@@ -22,11 +22,33 @@ fn get_temperature() -> f32 {
     0.0
 }
 
+fn get_os() -> String {
+    sysinfo::System::name().unwrap_or("n/a".to_owned())
+}
+
+fn get_cpu_arch() -> String {
+    sysinfo::System::cpu_arch()
+}
+
+fn get_cpu_usage() -> f32 {
+    let mut s = sysinfo::System::new_with_specifics(
+        sysinfo::RefreshKind::nothing().with_cpu(sysinfo::CpuRefreshKind::everything()),
+    );
+    // Wait a bit because CPU usage is based on diff.
+    std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+    // Refresh CPUs again to get actual value.
+    s.refresh_cpu_usage();
+    s.global_cpu_usage()
+}
+
 #[derive(Debug)]
 struct Device {
     name: String,
     temperature: f32,
     weather: String,
+    os: String,
+    cpu_arch: String,
+    cpu_usage: f32,
     ts_start: u64,
     tailscale_ip: String,
 }
@@ -54,6 +76,9 @@ impl Plugin {
             name: cfg::name().to_owned(),
             temperature: 0.0,
             weather: "n/a".to_owned(),
+            os: "n/a".to_owned(),
+            cpu_arch: "n/a".to_owned(),
+            cpu_usage: 0.0,
             ts_start: utils::uptime(),
             tailscale_ip: "n/a".to_owned(),
         };
@@ -100,6 +125,36 @@ impl Plugin {
                     NAME.to_owned(),
                     msg::ACT_UPDATE_ITEM.to_owned(),
                     vec!["temperature".to_owned(), temperature.to_string()],
+                )
+                .await;
+
+                let os = get_os();
+                msg::cmd(
+                    &msg_tx_clone,
+                    Reply::Device(cfg::name()),
+                    NAME.to_owned(),
+                    msg::ACT_UPDATE_ITEM.to_owned(),
+                    vec!["os".to_owned(), os],
+                )
+                .await;
+
+                let cpu_arch = get_cpu_arch();
+                msg::cmd(
+                    &msg_tx_clone,
+                    Reply::Device(cfg::name()),
+                    NAME.to_owned(),
+                    msg::ACT_UPDATE_ITEM.to_owned(),
+                    vec!["cpu_arch".to_owned(), cpu_arch],
+                )
+                .await;
+
+                let cpu_usage = get_cpu_usage();
+                msg::cmd(
+                    &msg_tx_clone,
+                    Reply::Device(cfg::name()),
+                    NAME.to_owned(),
+                    msg::ACT_UPDATE_ITEM.to_owned(),
+                    vec!["cpu_usage".to_owned(), cpu_usage.to_string()],
                 )
                 .await;
 
@@ -179,6 +234,33 @@ impl Plugin {
                 )
                 .await;
 
+                // os
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] OS: {}", get_os()),
+                )
+                .await;
+
+                // cpu arch
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] CPU Arch: {}", get_cpu_arch()),
+                )
+                .await;
+
+                // cpu usage
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] CPU Usage: {:.1}%", get_cpu_usage()),
+                )
+                .await;
+
                 // weather
                 log(
                     &self.msg_tx,
@@ -217,6 +299,16 @@ impl Plugin {
             }
             "tailscale_ip" => {
                 self.device.tailscale_ip = cmd.data.get(1).unwrap().to_owned();
+            }
+            "os" => {
+                self.device.os = cmd.data.get(1).unwrap().to_owned();
+            }
+            "cpu_arch" => {
+                self.device.cpu_arch = cmd.data.get(1).unwrap().to_owned();
+            }
+            "cpu_usage" => {
+                let cpu_usage = cmd.data.get(1).unwrap().parse::<f32>().unwrap_or(0.0);
+                self.device.cpu_usage = cpu_usage;
             }
             _ => {
                 log(
@@ -305,6 +397,44 @@ impl Plugin {
                 "temperature".to_owned(),
                 "false".to_owned(),
                 self.device.temperature.to_string(),
+            ],
+        )
+        .await;
+
+        // os
+        msg::cmd(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            plugin_mqtt::NAME.to_owned(),
+            msg::ACT_PUBLISH.to_owned(),
+            vec!["os".to_owned(), "false".to_owned(), self.device.os.clone()],
+        )
+        .await;
+
+        // cpu arch
+        msg::cmd(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            plugin_mqtt::NAME.to_owned(),
+            msg::ACT_PUBLISH.to_owned(),
+            vec![
+                "cpu_arch".to_owned(),
+                "false".to_owned(),
+                self.device.cpu_arch.clone(),
+            ],
+        )
+        .await;
+
+        // cpu usage
+        msg::cmd(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            plugin_mqtt::NAME.to_owned(),
+            msg::ACT_PUBLISH.to_owned(),
+            vec![
+                "cpu_usage".to_owned(),
+                "false".to_owned(),
+                self.device.cpu_usage.to_string(),
             ],
         )
         .await;

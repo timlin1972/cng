@@ -102,6 +102,15 @@ impl Plugin {
             if device.temperature.is_some() {
                 d.temperature = device.temperature;
             }
+            if device.os.is_some() {
+                d.os = device.os.clone();
+            }
+            if device.cpu_arch.is_some() {
+                d.cpu_arch = device.cpu_arch.clone();
+            }
+            if device.cpu_usage.is_some() {
+                d.cpu_usage = device.cpu_usage;
+            }
             if device.weather.is_some() {
                 d.weather = device.weather.clone();
             }
@@ -116,6 +125,9 @@ impl Plugin {
                 d.tailscale_ip = None;
                 d.version = None;
                 d.temperature = None;
+                d.os = None;
+                d.cpu_arch = None;
+                d.cpu_usage = None;
                 d.weather = None;
                 // d.last_seen = None;  // keep last_seen
             }
@@ -272,6 +284,40 @@ impl Plugin {
             cmd.reply.clone(),
             Info,
             format!("    Temperature: {temperature}"),
+        )
+        .await;
+
+        // os
+        let os = device.os.clone().unwrap_or("n/a".to_owned());
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    OS: {os}"),
+        )
+        .await;
+
+        // cpu arch
+        let cpu_arch = device.cpu_arch.clone().unwrap_or("n/a".to_owned());
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    CPU Arch: {cpu_arch}"),
+        )
+        .await;
+
+        // cpu usage
+        let cpu_usage = if let Some(t) = device.cpu_usage {
+            format!("{:.1}%", t)
+        } else {
+            "n/a".to_owned()
+        };
+        log(
+            &self.msg_tx,
+            cmd.reply.clone(),
+            Info,
+            format!("    CPU Usage: {cpu_usage}"),
         )
         .await;
 

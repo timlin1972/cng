@@ -72,8 +72,15 @@ impl Panel {
         match self.tab_index {
             0 => {
                 self.output.push(format!(
-                    "{:<12} {:<7} {:<10} {:<7} {:<11} {:<10}",
-                    "Name", "Onboard", "Version", "Temp", "Last update", "Countdown"
+                    "{:<12} {:<7} {:<10} {:8} {:14} {:<7} {:<11} {:<10}",
+                    "Name",
+                    "Onboard",
+                    "Version",
+                    "OS",
+                    "CPU Arch/Usage",
+                    "Temp",
+                    "Last update",
+                    "Countdown"
                 ));
                 for device in self.devices.iter() {
                     // onboard
@@ -90,6 +97,18 @@ impl Panel {
                     // version
                     let version = if let Some(t) = &device.version {
                         t.clone()
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    let os = if let Some(t) = &device.os {
+                        t.clone()
+                    } else {
+                        "n/a".to_owned()
+                    };
+
+                    let cpu = if let (Some(t), Some(u)) = (&device.cpu_arch, &device.cpu_usage) {
+                        format!("{}/{:.1}%", t, u)
                     } else {
                         "n/a".to_owned()
                     };
@@ -114,7 +133,7 @@ impl Panel {
                     };
 
                     self.output.push(format!(
-                        "{:<12} {onboard:<7} {version:<10} {temperature:<7} {:<11} {countdown:<10}",
+                        "{:<12} {onboard:<7} {version:<10} {os:<8} {cpu:14} {temperature:<7} {:<11} {countdown:<10}",
                         device.name,
                         utils::ts_str(device.ts),
                     ));

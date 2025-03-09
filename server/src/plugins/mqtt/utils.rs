@@ -343,7 +343,7 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
     let topic = &publish.topic;
 
     let re = regex::Regex::new(
-        r"^tln/([^/]+)/(onboard|app_uptime|host_uptime|version|temperature|weather|tailscale_ip)$",
+        r"^tln/([^/]+)/(onboard|app_uptime|host_uptime|version|temperature|weather|tailscale_ip|os|cpu_arch|cpu_usage)$",
     )
     .unwrap();
     if let Some(captures) = re.captures(topic) {
@@ -351,25 +351,35 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
         let key = &captures[2];
         let payload = std::str::from_utf8(&publish.payload).unwrap();
 
-        let (onboard, app_uptime, host_uptime, version, temperature, weather, tailscale_ip) =
-            match key {
-                "onboard" => {
-                    let onboard = match payload.parse::<u64>() {
-                        Ok(t) => t,
-                        Err(e) => {
-                            log(
-                                msg_tx,
-                                Reply::Device(cfg::name()),
-                                Error,
-                                format!("[{NAME}] Error: <- publish::onboard: {name}: {e:?}."),
-                            )
-                            .await;
-                            return true;
-                        }
-                    };
-
-                    if onboard != 0 && onboard != 1 {
+        let (
+            onboard,
+            app_uptime,
+            host_uptime,
+            version,
+            temperature,
+            weather,
+            tailscale_ip,
+            os,
+            cpu_arch,
+            cpu_usage,
+        ) = match key {
+            "onboard" => {
+                let onboard = match payload.parse::<u64>() {
+                    Ok(t) => t,
+                    Err(e) => {
                         log(
+                            msg_tx,
+                            Reply::Device(cfg::name()),
+                            Error,
+                            format!("[{NAME}] Error: <- publish::onboard: {name}: {e:?}."),
+                        )
+                        .await;
+                        return true;
+                    }
+                };
+
+                if onboard != 0 && onboard != 1 {
+                    log(
                         msg_tx,
                         Reply::Device(cfg::name()),
                         Error,
@@ -378,73 +388,201 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                         ),
                     )
                     .await;
-                        return true;
-                    }
-
-                    (Some(onboard == 1), None, None, None, None, None, None)
+                    return true;
                 }
-                "app_uptime" => {
-                    let app_uptime = match payload.parse::<u64>() {
-                        Ok(t) => t,
-                        Err(e) => {
-                            log(
+
+                (
+                    Some(onboard == 1),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            }
+            "app_uptime" => {
+                let app_uptime = match payload.parse::<u64>() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log(
                             msg_tx,
                             Reply::Device(cfg::name()),
                             Error,
                             format!("[{NAME}] Error: <- publish::app_uptime: {name}. Wrong uptime: {payload}: {e:?}."),
                         )
                         .await;
-                            return true;
-                        }
-                    };
-                    (None, Some(app_uptime), None, None, None, None, None)
-                }
-                "host_uptime" => {
-                    let host_uptime = match payload.parse::<u64>() {
-                        Ok(t) => t,
-                        Err(e) => {
-                            log(
+                        return true;
+                    }
+                };
+                (
+                    None,
+                    Some(app_uptime),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            }
+            "host_uptime" => {
+                let host_uptime = match payload.parse::<u64>() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log(
                             msg_tx,
                             Reply::Device(cfg::name()),
                             Error,
                             format!("[{NAME}] Error: <- publish::host_uptime: {name}. Wrong uptime: {payload}: {e:?}."),
                         )
                         .await;
-                            return true;
-                        }
-                    };
-                    (None, None, Some(host_uptime), None, None, None, None)
-                }
-                "version" => (None, None, None, Some(payload.to_owned()), None, None, None),
-                "temperature" => {
-                    let temperature = match payload.parse::<f32>() {
-                        Ok(t) => t,
-                        Err(e) => {
-                            log(
+                        return true;
+                    }
+                };
+                (
+                    None,
+                    None,
+                    Some(host_uptime),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            }
+            "version" => (
+                None,
+                None,
+                None,
+                Some(payload.to_owned()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+            "temperature" => {
+                let temperature = match payload.parse::<f32>() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log(
                             msg_tx,
                             Reply::Device(cfg::name()),
                             Error,
                             format!("[{NAME}] Error: <- publish::temperature: {name}: Wrong temperature: {payload}: {e:?}."),
                         )
                         .await;
-                            return true;
-                        }
-                    };
-                    (None, None, None, None, Some(temperature), None, None)
-                }
-                "weather" => (None, None, None, None, None, Some(payload.to_owned()), None),
-                "tailscale_ip" => (None, None, None, None, None, None, Some(payload.to_owned())),
-                _ => {
-                    log(
-                        msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] Error: <- publish: {name}. Unknown key: '{key}'."),
-                    )
-                    .await;
-                    return true;
-                }
-            };
+                        return true;
+                    }
+                };
+                (
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(temperature),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            }
+            "weather" => (
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(payload.to_owned()),
+                None,
+                None,
+                None,
+                None,
+            ),
+            "tailscale_ip" => (
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(payload.to_owned()),
+                None,
+                None,
+                None,
+            ),
+            "os" => (
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(payload.to_owned()),
+                None,
+                None,
+            ),
+            "cpu_arch" => (
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(payload.to_owned()),
+                None,
+            ),
+            "cpu_usage" => {
+                let cpu_usage = match payload.parse::<f32>() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        log(
+                            msg_tx,
+                            Reply::Device(cfg::name()),
+                            Error,
+                            format!("[{NAME}] Error: <- publish::cpu_usage: {name}: Wrong cpu_usage: {payload}: {e:?}."),
+                        )
+                        .await;
+                        return true;
+                    }
+                };
+                (
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(cpu_usage),
+                )
+            }
+            _ => {
+                log(
+                    msg_tx,
+                    Reply::Device(cfg::name()),
+                    Error,
+                    format!("[{NAME}] Error: <- publish: {name}. Unknown key: '{key}'."),
+                )
+                .await;
+                return true;
+            }
+        };
 
         log(
             msg_tx,
@@ -454,12 +592,15 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
         )
         .await;
 
-        // update the last seen if onboard is true OR any of uptime, version, temperature, weather is not None
+        // update the last seen if onboard is true OR any of uptime, version, temperature, os, cpu_arch, cpu_usage, weather is not None
         let last_seen = if (onboard.is_some() && onboard.unwrap())
             || app_uptime.is_some()
             || host_uptime.is_some()
             || version.is_some()
             || temperature.is_some()
+            || os.is_some()
+            || cpu_arch.is_some()
+            || cpu_usage.is_some()
             || weather.is_some()
             || tailscale_ip.is_some()
         {
@@ -478,6 +619,9 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 host_uptime,
                 version,
                 temperature,
+                os,
+                cpu_arch,
+                cpu_usage,
                 weather,
                 last_seen,
                 tailscale_ip,
