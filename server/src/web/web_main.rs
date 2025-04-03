@@ -57,6 +57,7 @@ pub async fn run(msg_tx: Sender<Msg>) -> Result<(), Box<dyn std::error::Error>> 
             App::new()
                 .app_data(web::Data::new(msg_tx_clone.clone()))
                 .route(API_V1_CMD, web::post().to(cmd))
+                .service(Files::new("/shared", "./shared").show_files_listing())
                 .service(Files::new("/", "../client/out").index_file("index.html"))
         })
         .bind(LISTENING_ON)

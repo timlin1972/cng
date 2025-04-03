@@ -1,5 +1,6 @@
 pub mod mongodb;
 pub mod mqtt;
+pub mod nas;
 pub mod plugin_devices;
 pub mod plugin_file;
 pub mod plugin_log;

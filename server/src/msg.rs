@@ -3,7 +3,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
 use crate::panels::panels_main;
-use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt, plugin_nas};
+use crate::plugins::{plugin_devices, plugin_log, plugin_mqtt};
 use crate::utils;
 
 #[allow(clippy::large_enum_variant)]
@@ -16,7 +16,6 @@ pub enum Data {
     Weather(Vec<City>),
     Worldtime(Vec<Worldtime>),
     Cmd(Cmd),
-    TailscaleIP(String),
     Stocks(Vec<utils::Stock>),
 }
 
@@ -296,51 +295,6 @@ pub async fn cmd(
                 action,
                 data,
             }),
-        })
-        .await
-        .unwrap();
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn nas_file(
-    msg_tx: &Sender<Msg>,
-    reply: Reply,
-    action: &str,
-    tailscale_ip: String,
-    device_name: String,
-    stage: String,
-    filename: String,
-    md5: String,
-    modified: String,
-) {
-    msg_tx
-        .send(Msg {
-            ts: utils::ts(),
-            plugin: plugin_mqtt::NAME.to_owned(),
-            data: Data::Cmd(Cmd {
-                reply,
-                action: ACT_NAS.to_owned(),
-                data: vec![
-                    action.to_string(),
-                    tailscale_ip,
-                    device_name,
-                    stage,
-                    filename,
-                    md5,
-                    modified,
-                ],
-            }),
-        })
-        .await
-        .unwrap();
-}
-
-pub async fn tailscale_ip(msg_tx: &Sender<Msg>, tailscale_ip: &str) {
-    msg_tx
-        .send(Msg {
-            ts: utils::ts(),
-            plugin: plugin_nas::NAME.to_owned(),
-            data: Data::TailscaleIP(tailscale_ip.to_owned()),
         })
         .await
         .unwrap();

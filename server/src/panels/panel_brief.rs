@@ -357,12 +357,8 @@ impl panels_main::Panel for Panel {
                 )
                 .await;
             }
-
             None => {
-                panels_main::output_push(
-                    &mut self.panel_info.output,
-                    command::UNKNOWN_COMMAND.to_owned(),
-                );
+                panels_main::output_push(&mut self.panel_info.output, "".to_owned());
             }
         }
 

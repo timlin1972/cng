@@ -11,6 +11,7 @@ use crate::utils;
 pub const NAME: &str = "Error";
 
 const POPUP_HELP: &str = "Help";
+const POPUP_ALL: &str = "All";
 
 #[derive(Debug)]
 pub struct Panel {
@@ -27,14 +28,24 @@ impl Panel {
 
         let panel_info = PanelInfo::new(
             NAME,
-            vec![Popup {
-                name: POPUP_HELP.to_owned(),
-                x: 50,
-                y: 30,
-                output: help_text,
-                cursor_x: None,
-                cursor_y: None,
-            }],
+            vec![
+                Popup {
+                    name: POPUP_HELP.to_owned(),
+                    x: 50,
+                    y: 30,
+                    output: help_text,
+                    cursor_x: None,
+                    cursor_y: None,
+                },
+                Popup {
+                    name: POPUP_ALL.to_owned(),
+                    x: 100,
+                    y: 80,
+                    output: vec![],
+                    cursor_x: None,
+                    cursor_y: None,
+                },
+            ],
             msg_tx,
         );
 
@@ -85,6 +96,17 @@ impl panels_main::Panel for Panel {
                 KeyCode::Char('c') => self.panel_info.output.clear(),
                 KeyCode::Char('h') => {
                     self.panel_info.active_popup_name = Some(POPUP_HELP.to_owned())
+                }
+                KeyCode::Char('a') => {
+                    self.panel_info.active_popup_name = Some(POPUP_ALL.to_owned());
+                    let active_popup = self
+                        .panel_info
+                        .popup
+                        .iter_mut()
+                        .find(|p| p.name == POPUP_ALL)
+                        .unwrap();
+
+                    active_popup.output = self.panel_info.output.clone();
                 }
                 _ => {}
             },

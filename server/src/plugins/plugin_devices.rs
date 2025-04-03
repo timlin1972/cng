@@ -40,23 +40,6 @@ impl Plugin {
                 ],
             )
             .await;
-
-            // if I am NAS, ask others to update NAS but do not ask myself
-            if cfg::name() == cfg::nas() && device_name != cfg::nas() {
-                msg::cmd(
-                    msg_tx,
-                    Reply::Device(cfg::name()),
-                    plugin_mqtt::NAME.to_owned(),
-                    msg::ACT_ASK.to_owned(),
-                    vec![
-                        device_name.to_owned(),
-                        "p".to_owned(),
-                        plugin_nas::NAME.to_owned(),
-                        msg::ACT_UPDATE.to_owned(),
-                    ],
-                )
-                .await;
-            }
         }
 
         if let Some(d) = self.devices.iter_mut().find(|d| d.name == device.name) {
@@ -161,30 +144,6 @@ impl Plugin {
             }
             if device.onboard.is_some() && device.onboard.unwrap() {
                 ask_device_update(&self.msg_tx, &device.name).await;
-            }
-        }
-
-        // if no cfg::nas() in devices or not onboard, ask NAS to unsync
-        if !self.devices.iter().any(|d| d.name == cfg::nas()) {
-            msg::cmd(
-                &self.msg_tx,
-                Reply::Device(cfg::name()),
-                plugin_nas::NAME.to_owned(),
-                msg::ACT_NAS.to_owned(),
-                vec!["sync".to_owned(), false.to_string()],
-            )
-            .await;
-        } else {
-            let nas = self.devices.iter().find(|d| d.name == cfg::nas()).unwrap();
-            if nas.onboard.is_some() && !nas.onboard.unwrap() {
-                msg::cmd(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    plugin_nas::NAME.to_owned(),
-                    msg::ACT_NAS.to_owned(),
-                    vec!["sync".to_owned(), false.to_string()],
-                )
-                .await;
             }
         }
 

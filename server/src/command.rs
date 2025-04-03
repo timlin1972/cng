@@ -93,9 +93,8 @@ pub async fn run(msg_tx: &Sender<Msg>, cmd: &str) -> bool {
         }) => {
             msg::cmd(msg_tx, Reply::Device(cfg::name()), plugin, action, data).await;
         }
-
         None => {
-            println!("{UNKNOWN_COMMAND}");
+            println!(); // cli mode
         }
     }
 

@@ -8,7 +8,7 @@ use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.3.0";
+const VERSION: &str = "0.3.1";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -71,7 +71,6 @@ async fn update_system(msg_tx: &Sender<Msg>, reply: Reply) {
         vec!["tailscale_ip".to_owned(), tailscale_ip.clone()],
     )
     .await;
-    msg::tailscale_ip(msg_tx, &tailscale_ip).await;
 
     // weather
     let weather = utils::device_weather().await;
