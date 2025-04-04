@@ -26,4 +26,5 @@ Cargo.lock
 
 cfg.json
 /shared
+/backup
 log.txt
