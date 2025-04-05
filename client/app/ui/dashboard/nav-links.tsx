@@ -19,6 +19,7 @@ const links = [
     icon: DocumentDuplicateIcon,
   },
   { name: "Weather", href: "/dashboard/weather", icon: UserGroupIcon },
+  { name: "Upload", href: "/dashboard/upload", icon: UserGroupIcon },
 ];
 
 export default function NavLinks() {

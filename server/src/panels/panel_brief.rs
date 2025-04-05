@@ -15,7 +15,7 @@ const POPUP_HELP: &str = "Help";
 const POPUP_ALL: &str = "All";
 const POPUP_EDITOR: &str = "Editor";
 
-const NOTE_PATH: &str = "./shared/note.md";
+const NOTE_PATH: &str = "note.md";
 
 #[derive(Debug)]
 pub struct Panel {
@@ -312,6 +312,7 @@ impl panels_main::Panel for Panel {
                 self.panel_info.active_popup_name = Some(POPUP_EDITOR.to_owned());
 
                 let filename = filename.unwrap_or(NOTE_PATH.to_owned());
+                let filename = format!("{}/{filename}", cfg::NOTE_FOLDER);
 
                 let active_popup = self
                     .panel_info
@@ -325,6 +326,10 @@ impl panels_main::Panel for Panel {
                     .lines()
                     .map(String::from)
                     .collect();
+
+                if active_popup.output.is_empty() {
+                    active_popup.output.push("".to_owned());
+                }
 
                 self.editor_filename = Some(filename);
             }

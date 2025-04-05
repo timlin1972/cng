@@ -16,6 +16,8 @@ const TRACE: u8 = 1;
 pub const DEF_NAS: &str = "pi5";
 
 pub const FILE_FOLDER: &str = "./shared";
+pub const NOTE_FOLDER: &str = "./shared/note";
+pub const UPLOAD_FOLDER: &str = "./shared/upload";
 
 static INSTANCE: Lazy<Mutex<Cfg>> = Lazy::new(|| Mutex::new(Cfg::new()));
 

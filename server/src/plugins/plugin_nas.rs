@@ -6,16 +6,14 @@ use std::str;
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use log::Level::{Error, Info};
-use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{self, Sender};
-use tokio::task;
 use tokio::time::{timeout, Duration};
 
 use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, DevInfo, Msg, Reply};
-use crate::plugins::nas::files_data;
+use crate::plugins::nas::{files_data, monitor};
 use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::utils;
 
@@ -137,7 +135,7 @@ impl Plugin {
         }
 
         // monitor CFG::FILE_FOLDER
-        monitor(self.msg_tx.clone());
+        monitor::monitor(self.msg_tx.clone());
 
         log(
             &self.msg_tx,
@@ -615,14 +613,6 @@ fn client(
         while let Some(event) = client_rx.recv().await {
             match event.action.as_str() {
                 "SYNC_DEVICE" => {
-                    log(
-                        &msg_tx_clone,
-                        Reply::Device(cfg::name()),
-                        Info,
-                        format!("[{NAME}] SYNC_DEVICE: {} {}", event.data[0], event.data[1]),
-                    )
-                    .await;
-
                     let device_name = &event.data[0];
                     let device_tailscale_ip = &event.data[1];
                     if device_tailscale_ip == &tailscale_ip {
@@ -934,9 +924,6 @@ fn server(msg_tx_clone: Sender<Msg>) {
 
                                 match item.action.as_str() {
                                     "GET" => {
-                                        let request = format!("GET {}\n", item.filename);
-                                        stream.write_all(request.as_bytes()).await.unwrap();
-
                                         log(
                                             &msg_tx_clone,
                                             Reply::Device(cfg::name()),
@@ -947,6 +934,9 @@ fn server(msg_tx_clone: Sender<Msg>) {
                                             ),
                                         )
                                         .await;
+
+                                        let request = format!("GET {}\n", item.filename);
+                                        stream.write_all(request.as_bytes()).await.unwrap();
 
                                         let mut buffer = Vec::new();
                                         stream.read_to_end(&mut buffer).await.unwrap();
@@ -986,6 +976,17 @@ fn server(msg_tx_clone: Sender<Msg>) {
                                         .await;
                                     }
                                     "PUT" => {
+                                        log(
+                                            &msg_tx_clone,
+                                            Reply::Device(cfg::name()),
+                                            Info,
+                                            format!(
+                                                "[{NAME}] Sent: {} {}",
+                                                item.action, item.filename
+                                            ),
+                                        )
+                                        .await;
+
                                         let file = File::open(&item.filename).unwrap();
                                         let mut reader = BufReader::new(file);
 
@@ -999,17 +1000,6 @@ fn server(msg_tx_clone: Sender<Msg>) {
                                             }
                                             stream.write_all(&buffer[..n]).await.unwrap();
                                         }
-
-                                        log(
-                                            &msg_tx_clone,
-                                            Reply::Device(cfg::name()),
-                                            Info,
-                                            format!(
-                                                "[{NAME}] Sent: {} {}",
-                                                item.action, item.filename
-                                            ),
-                                        )
-                                        .await;
                                     }
                                     _ => (),
                                 }
@@ -1034,9 +1024,6 @@ fn server(msg_tx_clone: Sender<Msg>) {
                                 }
                             };
 
-                            let request = "END\n".to_owned();
-                            stream.write_all(request.as_bytes()).await.unwrap();
-
                             log(
                                 &msg_tx_clone,
                                 Reply::Device(cfg::name()),
@@ -1044,6 +1031,9 @@ fn server(msg_tx_clone: Sender<Msg>) {
                                 format!("[{NAME}] Sent: END"),
                             )
                             .await;
+
+                            let request = "END\n".to_owned();
+                            stream.write_all(request.as_bytes()).await.unwrap();
 
                             msg::cmd(
                                 &msg_tx_clone,
@@ -1058,99 +1048,6 @@ fn server(msg_tx_clone: Sender<Msg>) {
                     _ => (),
                 }
             });
-        }
-    });
-}
-
-fn monitor(msg_tx_clone: Sender<Msg>) {
-    tokio::spawn(async move {
-        let path_to_watch = Path::new(cfg::FILE_FOLDER);
-
-        let (tx, mut rx) = mpsc::channel(100);
-
-        let _watcher_handle = task::spawn_blocking(move || {
-            let mut watcher = RecommendedWatcher::new(
-                move |res| {
-                    let _ = tx.blocking_send(res);
-                },
-                Config::default(),
-            )
-            .expect("Watcher 初始化失敗");
-
-            watcher
-                .watch(Path::new(path_to_watch), RecursiveMode::Recursive)
-                .expect("無法監聽目錄");
-
-            loop {
-                std::thread::sleep(std::time::Duration::from_secs(1));
-            }
-        });
-
-        log(
-            &msg_tx_clone,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] Monitoring {path_to_watch:?}"),
-        )
-        .await;
-
-        while let Some(event) = rx.recv().await {
-            match event {
-                Ok(event) => match event.kind {
-                    notify::event::EventKind::Create(_) => (),
-                    notify::event::EventKind::Modify(_) => {
-                        for path in event.paths.iter() {
-                            let filename = monitor_get_file(path.to_str().unwrap());
-                            msg::cmd(
-                                &msg_tx_clone,
-                                Reply::Device(cfg::name()),
-                                NAME.to_owned(),
-                                msg::ACT_NAS.to_owned(),
-                                vec!["remote_modify".to_owned(), filename.to_owned()],
-                            )
-                            .await;
-                            log(
-                                &msg_tx_clone,
-                                Reply::Device(cfg::name()),
-                                Info,
-                                format!("[{NAME}][monitor] File is modified: {filename}"),
-                            )
-                            .await;
-                        }
-                    }
-                    notify::event::EventKind::Remove(_) => {
-                        for path in event.paths.iter() {
-                            let filename = monitor_get_file(path.to_str().unwrap());
-                            msg::cmd(
-                                &msg_tx_clone,
-                                Reply::Device(cfg::name()),
-                                NAME.to_owned(),
-                                msg::ACT_NAS.to_owned(),
-                                vec!["remote_remove".to_owned(), filename.to_owned()],
-                            )
-                            .await;
-                            log(
-                                &msg_tx_clone,
-                                Reply::Device(cfg::name()),
-                                Info,
-                                format!("[{NAME}][monitor] File is removed: {filename}"),
-                            )
-                            .await;
-                        }
-                    }
-                    notify::event::EventKind::Access(_) => (),
-                    _ => {
-                        log(
-                            &msg_tx_clone,
-                            Reply::Device(cfg::name()),
-                            Info,
-                            format!("[{NAME}] Unhandled event: {event:?}"),
-                        )
-                        .await;
-                    }
-                },
-                Err(e) => eprintln!("[{NAME}] Invalid event. Err: {e:?}"),
-            }
         }
     });
 }
@@ -1228,14 +1125,4 @@ fn get_all_files_recursively(path: &Path) -> Vec<String> {
     }
 
     output
-}
-
-fn monitor_get_file(file_path: &str) -> String {
-    let keyword = "./shared/";
-    if let Some(pos) = file_path.find(keyword) {
-        let result = &file_path[pos..];
-        return result.to_owned();
-    }
-
-    "".to_owned()
 }
