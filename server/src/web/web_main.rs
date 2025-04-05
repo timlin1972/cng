@@ -9,6 +9,8 @@ use log::Level::{Info, Trace};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{self, Sender};
 
+use crate::{info, init, trace};
+
 const API_V1_CMD: &str = "/api/v1/cmd";
 const API_V1_UPLOAD: &str = "/api/v1/upload";
 
@@ -32,13 +34,7 @@ async fn cmd(req_body: String, sender: web::Data<Sender<Msg>>) -> impl Responder
     let cmd_args: Vec<&str> = cmd.cmd.split_whitespace().collect();
     let data: Vec<String> = cmd_args[3..].iter().map(|&s| s.to_string()).collect();
 
-    log(
-        &sender,
-        Reply::Device(cfg::name()),
-        Trace,
-        format!("[{NAME}] {API_V1_CMD}: {}", cmd.cmd),
-    )
-    .await;
+    trace!(&sender, format!("[{NAME}] {API_V1_CMD}: {}", cmd.cmd));
 
     let plugin = cmd_args[1];
     let action = cmd_args[2];
@@ -78,13 +74,7 @@ async fn upload_file(mut payload: Multipart, sender: web::Data<Sender<Msg>>) -> 
             }
         }
 
-        log(
-            &sender,
-            Reply::Device(cfg::name()),
-            Trace,
-            format!("[{NAME}] Uploaded: {filepath}"),
-        )
-        .await;
+        info!(&sender, format!("[{NAME}] Uploaded: {filepath}"));
     }
 
     HttpResponse::Ok().body("Upload complete")
@@ -109,13 +99,7 @@ pub async fn run(msg_tx: Sender<Msg>) -> Result<(), Box<dyn std::error::Error>> 
         .await;
     });
 
-    log(
-        &msg_tx,
-        Reply::Device(cfg::name()),
-        Info,
-        format!("[{NAME}] init"),
-    )
-    .await;
+    init!(&msg_tx, NAME);
 
     Ok(())
 }

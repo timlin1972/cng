@@ -185,6 +185,48 @@ pub async fn file_end(msg_tx: &Sender<Msg>, reply: Reply, sequence: usize) {
         .unwrap();
 }
 
+#[macro_export]
+macro_rules! reply_me {
+    () => {
+        Reply::Device(cfg::name())
+    };
+}
+
+#[macro_export]
+macro_rules! info {
+    ($msg_tx:expr, $msg:expr) => {
+        log(&$msg_tx, $crate::reply_me!(), Info, $msg).await;
+    };
+}
+
+#[macro_export]
+macro_rules! error {
+    ($msg_tx:expr, $msg:expr) => {
+        log(&$msg_tx, $crate::reply_me!(), Error, $msg).await;
+    };
+}
+
+#[macro_export]
+macro_rules! trace {
+    ($msg_tx:expr, $msg:expr) => {
+        log(&$msg_tx, $crate::reply_me!(), Trace, $msg).await;
+    };
+}
+
+#[macro_export]
+macro_rules! init {
+    ($msg_tx:expr, $name:expr) => {
+        info!($msg_tx, format!("[{}] Init", $name));
+    };
+}
+
+#[macro_export]
+macro_rules! unknown {
+    ($msg_tx:expr, $name:expr, $action:expr) => {
+        error!($msg_tx, format!("[{}] Unknown: {:?}.", $name, $action));
+    };
+}
+
 pub async fn log(msg_tx: &Sender<Msg>, reply: Reply, level: log::Level, msg: String) {
     match reply {
         Reply::Device(device) => {

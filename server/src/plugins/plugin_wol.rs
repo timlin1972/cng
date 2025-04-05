@@ -5,6 +5,7 @@ use tokio::sync::mpsc::Sender;
 use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
+use crate::{error, info, init, unknown};
 
 const NAME: &str = "wol";
 const LIN_DS_MAC: [u8; 6] = [0x90, 0x09, 0xd0, 0x64, 0x4e, 0xa4];
@@ -24,27 +25,14 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn show(&mut self) {
-        log(
+        info!(&self.msg_tx, "linds".to_owned());
+
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            "linds".to_owned(),
-        )
-        .await;
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
             format!(
                 "  mac: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
                 LIN_DS_MAC[0],
@@ -53,9 +41,8 @@ impl Plugin {
                 LIN_DS_MAC[3],
                 LIN_DS_MAC[4],
                 LIN_DS_MAC[5],
-            ),
-        )
-        .await;
+            )
+        );
     }
 
     async fn wake(&mut self, cmd: &Cmd) {
@@ -108,10 +95,8 @@ impl Plugin {
     }
 
     async fn help(&self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
             format!(
                 "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_SHOW}, {ACT_WAKE} [linds]",
                 NAME = NAME,
@@ -119,9 +104,8 @@ impl Plugin {
                 ACT_INIT = msg::ACT_INIT,
                 ACT_SHOW = msg::ACT_SHOW,
                 ACT_WAKE = msg::ACT_WAKE,
-            ),
-        )
-        .await;
+            )
+        );
     }
 }
 
@@ -149,13 +133,7 @@ impl plugins_main::Plugin for Plugin {
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

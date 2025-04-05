@@ -13,6 +13,7 @@ use tokio::sync::mpsc::Sender;
 use crate::cfg;
 use crate::msg::{log, Data, Msg, Reply};
 use crate::panels::{panel_brief, panel_error, panel_infos, panel_log};
+use crate::{error, info, init, unknown};
 
 pub const NAME: &str = "panels";
 
@@ -86,13 +87,8 @@ impl Panels {
     }
 
     pub async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
+
         for panel in &mut self.panels {
             panel.init().await;
         }
@@ -310,13 +306,7 @@ impl Panels {
                 self.get_panel_mut(panel_infos::NAME).msg(msg).await;
             }
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
     }

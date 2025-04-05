@@ -9,6 +9,7 @@ use crate::{
     cfg,
     utils::{self, Stock},
 };
+use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "stocks";
 const STOCK_POLLING: u64 = 60;
@@ -44,7 +45,7 @@ impl Plugin {
                     if let Ok(stock_info) = stock_info {
                         msg::cmd(
                             &msg_tx_clone,
-                            Reply::Device(cfg::name()),
+                            reply_me!(),
                             NAME.to_owned(),
                             msg::ACT_STOCK.to_owned(),
                             vec![
@@ -65,13 +66,7 @@ impl Plugin {
             }
         });
 
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn update(&mut self, cmd: &Cmd) {
@@ -81,17 +76,13 @@ impl Plugin {
         tokio::spawn(async move {
             for stock in &stocks {
                 let stock_info = utils::get_stock_info(&stock.code).await;
-                log(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    Info,
-                    format!("[{NAME}] {} updated.", stock.code),
-                )
-                .await;
+
+                info!(&msg_tx_clone, format!("[{NAME}] {} updated.", stock.code));
+
                 if let Ok(stock_info) = stock_info {
                     msg::cmd(
                         &msg_tx_clone,
-                        Reply::Device(cfg::name()),
+                        reply_me!(),
                         NAME.to_owned(),
                         msg::ACT_STOCK.to_owned(),
                         vec![
@@ -165,19 +156,16 @@ impl Plugin {
     }
 
     async fn help(&mut self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
             format!(
                 "[{NAME}] help: {}, {}, {}, {}",
                 msg::ACT_INIT,
                 msg::ACT_SHOW,
                 msg::ACT_UPDATE,
                 msg::ACT_STOCK
-            ),
-        )
-        .await;
+            )
+        );
     }
 }
 
@@ -196,23 +184,11 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_UPDATE => self.update(cmd).await,
                 msg::ACT_STOCK => self.stock(cmd).await,
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

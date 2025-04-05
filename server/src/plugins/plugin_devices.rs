@@ -6,6 +6,7 @@ use crate::cfg;
 use crate::msg::{self, devices, log, Cmd, Data, DevInfo, Msg, Reply};
 use crate::plugins::{plugin_mqtt, plugin_nas, plugin_system, plugins_main};
 use crate::utils;
+use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "devices";
 
@@ -29,7 +30,7 @@ impl Plugin {
         async fn ask_device_update(msg_tx: &Sender<Msg>, device_name: &str) {
             msg::cmd(
                 msg_tx,
-                Reply::Device(cfg::name()),
+                reply_me!(),
                 plugin_mqtt::NAME.to_owned(),
                 msg::ACT_ASK.to_owned(),
                 vec![
@@ -46,22 +47,15 @@ impl Plugin {
             d.ts = device.ts;
             // log if onboard is changed
             if device.onboard.is_some() && (device.onboard != d.onboard) {
-                log(
+                info!(
                     &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Info,
                     format!(
                         "[{NAME}] device '{}' {} at {}",
                         device.name,
-                        if device.onboard.unwrap() {
-                            "onboard"
-                        } else {
-                            "offboard"
-                        },
-                        utils::ts_str_full(utils::ts()),
-                    ),
-                )
-                .await;
+                        onboard_str(&device.onboard),
+                        utils::ts_str_full(utils::ts())
+                    )
+                );
             }
             if device.onboard.is_some() {
                 // ask system update if onboard from false to true
@@ -125,22 +119,15 @@ impl Plugin {
         } else {
             self.devices.push(device.clone());
             if device.onboard.is_some() {
-                log(
+                info!(
                     &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Info,
                     format!(
                         "[{NAME}] device '{}' {} at {}",
                         device.name,
-                        if device.onboard.unwrap() {
-                            "onboard"
-                        } else {
-                            "offboard"
-                        },
+                        onboard_str(&device.onboard),
                         utils::ts_str_full(utils::ts()),
-                    ),
-                )
-                .await;
+                    )
+                );
             }
             if device.onboard.is_some() && device.onboard.unwrap() {
                 ask_device_update(&self.msg_tx, &device.name).await;
@@ -161,13 +148,7 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn show_device(&self, cmd: &Cmd, device: &DevInfo) {
@@ -185,10 +166,7 @@ impl Plugin {
             &self.msg_tx,
             cmd.reply.clone(),
             Info,
-            format!(
-                "    Onboard: {}",
-                if device.onboard.unwrap() { "On" } else { "off" }
-            ),
+            format!("    Onboard: {}", onboard_str(&device.onboard),),
         )
         .await;
 
@@ -401,16 +379,22 @@ impl plugins_main::Plugin for Plugin {
                 self.device_update(device).await;
             }
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 
         false
+    }
+}
+
+fn onboard_str(onboard: &Option<bool>) -> &str {
+    if let Some(onboard) = onboard {
+        if *onboard {
+            "on"
+        } else {
+            "off"
+        }
+    } else {
+        "n/a"
     }
 }

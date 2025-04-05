@@ -5,6 +5,7 @@ use tokio::sync::mpsc::Sender;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply, Worldtime};
 use crate::plugins::plugins_main;
 use crate::{cfg, utils};
+use crate::{error, info, init, reply_me, trace, unknown};
 
 pub const NAME: &str = "worldtime";
 const WORLDTIME_POLLING: u64 = 5 * 60;
@@ -77,26 +78,14 @@ impl Plugin {
         let cities = self.cities.clone();
         tokio::spawn(async move {
             loop {
-                log(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    Trace,
-                    format!("[{NAME}] polling."),
-                )
-                .await;
+                trace!(&msg_tx_clone, format!("[{NAME}] polling."));
 
-                update_worldtime(&cities, &msg_tx_clone, Reply::Device(cfg::name()), Trace).await;
+                update_worldtime(&cities, &msg_tx_clone, reply_me!(), Trace).await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(WORLDTIME_POLLING)).await;
             }
         });
 
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn update(&mut self, cmd: &Cmd) {
@@ -140,21 +129,17 @@ impl Plugin {
     }
 
     async fn help(&self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
             format!(
                 "[{NAME}] {ACT_INIT}, {ACT_HELP}, {ACT_SHOW}, {ACT_UPDATE}, {ACT_WORLDTIME}",
-                NAME = NAME,
                 ACT_INIT = msg::ACT_INIT,
                 ACT_HELP = msg::ACT_HELP,
                 ACT_SHOW = msg::ACT_SHOW,
                 ACT_UPDATE = msg::ACT_UPDATE,
                 ACT_WORLDTIME = msg::ACT_WORLDTIME,
-            ),
-        )
-        .await;
+            )
+        );
     }
 }
 
@@ -173,23 +158,11 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_UPDATE => self.update(cmd).await,
                 msg::ACT_WORLDTIME => self.worldtime(cmd).await,
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

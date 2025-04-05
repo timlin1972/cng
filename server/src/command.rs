@@ -3,6 +3,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::cfg;
 use crate::msg::{self, Msg, Reply};
+use crate::reply_me;
 
 pub const UNKNOWN_COMMAND: &str = "Unknown command. Input 'h' for help.";
 pub const ALL_TEXT: &str = "All";
@@ -91,7 +92,7 @@ pub async fn run(msg_tx: &Sender<Msg>, cmd: &str) -> bool {
             action,
             data,
         }) => {
-            msg::cmd(msg_tx, Reply::Device(cfg::name()), plugin, action, data).await;
+            msg::cmd(msg_tx, reply_me!(), plugin, action, data).await;
         }
         None => {
             println!(); // cli mode

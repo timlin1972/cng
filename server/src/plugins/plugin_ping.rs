@@ -7,6 +7,7 @@ use tokio::sync::mpsc::Sender;
 use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
+use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "ping";
 
@@ -25,13 +26,7 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn ping(&mut self, cmd: &Cmd) {
@@ -91,11 +86,10 @@ impl Plugin {
     async fn help(&self) {
         log(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
+            reply_me!(),
             Info,
             format!(
                 "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_PING} <destination>",
-                NAME = NAME,
                 ACT_HELP = msg::ACT_HELP,
                 ACT_INIT = msg::ACT_INIT,
                 ACT_PING = msg::ACT_PING,
@@ -128,13 +122,7 @@ impl plugins_main::Plugin for Plugin {
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

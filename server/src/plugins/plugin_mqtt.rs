@@ -7,6 +7,7 @@ use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::{mqtt, plugins_main};
 use crate::utils;
+use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "mqtt";
 const BROKER: &str = "broker.emqx.io";
@@ -29,21 +30,9 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
 
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] Connecting to MQTT broker"),
-        )
-        .await;
+        info!(&self.msg_tx, format!("[{NAME}] Connecting to MQTT broker"));
 
         // connect to MQTT broker
         let mut mqttoptions = MqttOptions::new(cfg::name(), BROKER, 1883);
@@ -64,29 +53,23 @@ impl Plugin {
 
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
-            log(
+            info!(
                 &msg_tx_clone,
-                Reply::Device(cfg::name()),
-                Info,
-                format!("[{NAME}] Start to receive mqtt message."),
-            )
-            .await;
+                format!("[{NAME}] Start to receive mqtt message.")
+            );
 
             while let Ok(notification) = connection.poll().await {
                 mqtt::utils::process_event(&msg_tx_clone, notification).await;
             }
-            log(
+            error!(
                 &msg_tx_clone,
-                Reply::Device(cfg::name()),
-                Error,
-                format!("[{NAME}] Receive mqtt message stopped."),
-            )
-            .await;
+                format!("[{NAME}] Receive mqtt message stopped.")
+            );
 
             // disconnect
             msg::cmd(
                 &msg_tx_clone,
-                Reply::Device(cfg::name()),
+                reply_me!(),
                 NAME.to_owned(),
                 msg::ACT_DISCONNECT.to_owned(),
                 vec![],
@@ -309,23 +292,11 @@ impl plugins_main::Plugin for Plugin {
                     self.client = None;
                 }
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}.", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}."),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

@@ -25,13 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (msg_tx, msg_rx) = mpsc::channel(MSG_SIZE);
 
-    log(
-        &msg_tx,
-        Reply::Device(cfg::name()),
-        Info,
-        format!("Welcome to {}!", cfg::name()),
-    )
-    .await;
+    info!(&msg_tx, format!("Welcome to {}!", cfg::name()));
 
     web::web_main::run(msg_tx.clone()).await?;
 

@@ -6,6 +6,7 @@ use crate::cfg;
 use crate::msg::{self, log, City, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
 use crate::utils::{self, Weather, WeatherDaily};
+use crate::{error, info, init, reply_me, trace, unknown};
 
 pub const NAME: &str = "weather";
 const WEATHER_POLLING: u64 = 60 * 60;
@@ -13,7 +14,7 @@ const WEATHER_POLLING: u64 = 60 * 60;
 async fn update_weather(msg_tx: &Sender<Msg>, city_name: &str, weather: Weather) {
     msg::cmd(
         msg_tx,
-        Reply::Device(cfg::name()),
+        reply_me!(),
         NAME.to_owned(),
         msg::ACT_WEATHER.to_owned(),
         vec![
@@ -28,7 +29,7 @@ async fn update_weather(msg_tx: &Sender<Msg>, city_name: &str, weather: Weather)
     for (idx, daily) in weather.daily.iter().enumerate() {
         msg::cmd(
             msg_tx,
-            Reply::Device(cfg::name()),
+            reply_me!(),
             NAME.to_owned(),
             msg::ACT_WEATHER_DAILY.to_owned(),
             vec![
@@ -145,27 +146,14 @@ impl Plugin {
         let weather = self.weather.clone();
         tokio::spawn(async move {
             loop {
-                log(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    Trace,
-                    format!("[{NAME}] polling."),
-                )
-                .await;
+                trace!(&msg_tx_clone, format!("[{NAME}] polling."));
 
-                update_weather_all(&weather, &msg_tx_clone, Reply::Device(cfg::name()), Trace)
-                    .await;
+                update_weather_all(&weather, &msg_tx_clone, reply_me!(), Trace).await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(WEATHER_POLLING)).await;
             }
         });
 
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn show(&mut self, cmd: &Cmd) {
@@ -313,21 +301,17 @@ impl Plugin {
     }
 
     async fn help(&self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
             format!(
                 "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_SHOW}, {ACT_WEATHER}, {ACT_UPDATE}",
-                NAME = NAME,
                 ACT_HELP = msg::ACT_HELP,
                 ACT_INIT = msg::ACT_INIT,
                 ACT_SHOW = msg::ACT_SHOW,
                 ACT_WEATHER = msg::ACT_WEATHER,
                 ACT_UPDATE = msg::ACT_UPDATE,
-            ),
-        )
-        .await;
+            )
+        );
     }
 }
 
@@ -347,23 +331,11 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_WEATHER_DAILY => self.weather_daily(cmd).await,
                 msg::ACT_UPDATE => self.update(cmd).await,
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

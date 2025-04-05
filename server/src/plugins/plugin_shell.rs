@@ -9,6 +9,7 @@ use tokio::sync::mpsc::Sender;
 use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
+use crate::{error, info, init, unknown};
 
 pub const NAME: &str = "shell";
 
@@ -43,13 +44,7 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn stdout_task(&mut self, child: &mut Child, cmd: &Cmd) {
@@ -243,18 +238,15 @@ impl Plugin {
     }
 
     async fn help(&self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
             "shell: start, cmd, stop, show\n\
                 shell start\n\
                 shell cmd <command>\n\
                 shell stop\n\
                 shell show"
-                .to_owned(),
-        )
-        .await;
+                .to_owned()
+        );
     }
 }
 
@@ -274,23 +266,11 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_STOP => self.stop(cmd).await,
                 msg::ACT_SHOW => self.show(cmd).await,
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 
