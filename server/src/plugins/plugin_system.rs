@@ -6,6 +6,7 @@ use tokio::sync::mpsc::Sender;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::{cfg, utils};
+use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "system";
 const VERSION: &str = "0.3.2";
@@ -211,18 +212,12 @@ impl Plugin {
         let msg_tx_clone = self.msg_tx.clone();
         tokio::spawn(async move {
             loop {
-                update_system(&msg_tx_clone, Reply::Device(cfg::name())).await;
+                update_system(&msg_tx_clone, reply_me!()).await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(ONBOARD_POLLING)).await;
             }
         });
 
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn show(&mut self, cmd: &Cmd) {
@@ -382,13 +377,7 @@ impl Plugin {
                 self.device.disk_usage = disk_usage;
             }
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown item: {:?}", cmd.data.first().unwrap()),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, cmd.data.first().unwrap());
             }
         }
     }
@@ -554,13 +543,10 @@ impl Plugin {
     }
 
     async fn help(&mut self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] help: init, show, update, update_item, quit",),
-        )
-        .await;
+            format!("[{NAME}] help: init, show, update, update_item, quit")
+        );
     }
 }
 
@@ -583,23 +569,11 @@ impl plugins_main::Plugin for Plugin {
                     ret = true;
                 }
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

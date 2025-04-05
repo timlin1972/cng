@@ -9,6 +9,7 @@ use tokio::sync::mpsc::Sender;
 use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::plugins_main;
+use crate::{error, info, init, unknown};
 
 pub const NAME: &str = "file";
 const BUFFER_SIZE: usize = 4 * 1024;
@@ -34,30 +35,18 @@ impl Plugin {
     async fn init(&mut self) {
         if !Path::new(cfg::FILE_FOLDER).exists() {
             fs::create_dir(cfg::FILE_FOLDER).unwrap();
-            log(
+            info!(
                 &self.msg_tx,
-                Reply::Device(cfg::name()),
-                Info,
-                format!("[{NAME}] Folder '{}' is created.", cfg::FILE_FOLDER),
-            )
-            .await;
+                format!("[{NAME}] Folder '{}' is created.", cfg::FILE_FOLDER)
+            );
         } else {
-            log(
+            info!(
                 &self.msg_tx,
-                Reply::Device(cfg::name()),
-                Info,
-                format!("[{NAME}] Folder '{}' is existed.", cfg::FILE_FOLDER),
-            )
-            .await;
+                format!("[{NAME}] Folder '{}' is existed.", cfg::FILE_FOLDER)
+            );
         }
 
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn show(&mut self, cmd: &Cmd) {
@@ -107,13 +96,7 @@ impl Plugin {
     async fn put(&mut self, cmd: &Cmd) {
         if let Reply::Device(device) = &cmd.reply {
             if *device == cfg::name() {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] put is not for local use."),
-                )
-                .await;
+                error!(&self.msg_tx, format!("[{NAME}] put is not for local use."));
                 return;
             }
         }
@@ -229,13 +212,10 @@ impl Plugin {
 
                     self.sequence += 1;
 
-                    log(
+                    info!(
                         &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Info,
-                        format!("[{NAME}] file: content: {:?}", sequence),
-                    )
-                    .await;
+                        format!("[{NAME}] file: content: {:?}", sequence)
+                    );
                 }
                 "end" => {
                     if self.filename.is_none() {
@@ -273,44 +253,31 @@ impl Plugin {
                     self.sequence = 0;
                 }
                 _ => {
-                    log(
+                    error!(
                         &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] file: invalid data: {:?}", data),
-                    )
-                    .await;
+                        format!("[{NAME}] file: invalid data: {:?}", data)
+                    );
                 }
             },
             None => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] file: no data"),
-                )
-                .await;
+                error!(&self.msg_tx, format!("[{NAME}] file: no data"));
             }
         }
     }
 
     async fn help(&self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
             format!(
                 "[{NAME}] {ACT_INIT}, {ACT_HELP}, {ACT_PUT} <filename>, {ACT_FILE} <filename>, {ACT_SHOW}, {ACT_STOP}",
-                NAME = NAME,
                 ACT_INIT = msg::ACT_INIT,
                 ACT_HELP = msg::ACT_HELP,
                 ACT_PUT = msg::ACT_PUT,
                 ACT_FILE = msg::ACT_FILE,
                 ACT_SHOW = msg::ACT_SHOW,
                 ACT_STOP = msg::ACT_STOP,
-            ),
-        )
-        .await;
+            )
+        );
     }
 }
 
@@ -330,23 +297,11 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_SHOW => self.show(cmd).await,
                 msg::ACT_STOP => self.stop(cmd).await,
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

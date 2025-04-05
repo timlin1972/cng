@@ -5,30 +5,22 @@ use tokio::sync::mpsc::Sender;
 use crate::msg::{self, device_update, log, DevInfo, Msg, Reply};
 use crate::plugins::{plugin_file, plugin_mqtt, plugin_nas, plugin_system};
 use crate::{cfg, utils};
+use crate::{error, info, reply_me, trace};
 
 const NAME: &str = "mqtt::utils";
 const RESTART_DELAY: u64 = 30;
 
 pub async fn subscribe(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>, topic: &str) {
     if client.is_none() {
-        log(
+        trace!(
             msg_tx,
-            Reply::Device(cfg::name()),
-            Trace,
-            format!("[{NAME}] -> subscribe: {topic} failed: client disconnected."),
-        )
-        .await;
+            format!("[{NAME}] -> subscribe: {topic} failed: client disconnected.")
+        );
         return;
     }
     let client = client.unwrap();
 
-    log(
-        msg_tx,
-        Reply::Device(cfg::name()),
-        Trace,
-        format!("[{NAME}] -> subscribe: {topic}"),
-    )
-    .await;
+    trace!(msg_tx, format!("[{NAME}] -> subscribe: {topic}"));
 
     client.subscribe(topic, QoS::AtMostOnce).await.unwrap();
 }
@@ -41,76 +33,52 @@ pub async fn publish(
     payload: &str,
 ) {
     if client.is_none() {
-        log(
+        trace!(
             msg_tx,
-            Reply::Device(cfg::name()),
-            Trace,
-            format!("[{NAME}] -> publish: {topic}, '{payload}' failed: client disconnected."),
-        )
-        .await;
+            format!("[{NAME}] -> pub: {topic}, '{payload}' failed: client disconnected.")
+        );
         return;
     }
     let client = client.unwrap();
 
-    log(
-        msg_tx,
-        Reply::Device(cfg::name()),
-        Trace,
-        format!("[{NAME}] -> publish: {topic}, '{payload}'"),
-    )
-    .await;
+    trace!(msg_tx, format!("[{NAME}] -> pub: {topic}, '{payload}'"));
 
     if let Err(e) = client
         .publish(topic, QoS::AtMostOnce, retain, payload)
         .await
     {
-        log(
+        error!(
             msg_tx,
-            Reply::Device(cfg::name()),
-            Error,
-            format!("[{NAME}] -> publish: {topic}, '{payload}' failed: {e}."),
-        )
-        .await;
+            format!("[{NAME}] -> pub: {topic}, '{payload}' failed: {e}.")
+        );
     }
 }
 
 pub async fn disconnect(msg_tx: &Sender<Msg>, client: Option<&AsyncClient>) {
     if client.is_none() {
-        log(
+        trace!(
             msg_tx,
-            Reply::Device(cfg::name()),
-            Trace,
-            format!("[{NAME}] -> disconnect failed: client disconnected."),
-        )
-        .await;
+            format!("[{NAME}] -> disconnect failed: client disconnected.")
+        );
         return;
     }
     let client = client.unwrap();
 
-    log(
-        msg_tx,
-        Reply::Device(cfg::name()),
-        Trace,
-        format!("[{NAME}] -> disconnect"),
-    )
-    .await;
+    trace!(msg_tx, format!("[{NAME}] -> disconnect"));
 
     let _ = client.disconnect().await;
 
-    log(
+    error!(
         msg_tx,
-        Reply::Device(cfg::name()),
-        Error,
-        format!("[{NAME}] Waiting for {RESTART_DELAY} secs to restart."),
-    )
-    .await;
+        format!("[{NAME}] Waiting for {RESTART_DELAY} secs to restart.")
+    );
 
     tokio::time::sleep(tokio::time::Duration::from_secs(RESTART_DELAY)).await;
 
     // init
     msg::cmd(
         msg_tx,
-        Reply::Device(cfg::name()),
+        reply_me!(),
         plugin_mqtt::NAME.to_owned(),
         msg::ACT_INIT.to_owned(),
         vec![],
@@ -138,29 +106,17 @@ pub async fn process_event(msg_tx: &Sender<Msg>, event: Event) {
             process_event_conn_ack(msg_tx).await;
         }
         _ => {
-            log(
-                msg_tx,
-                Reply::Device(cfg::name()),
-                Trace,
-                format!("[{NAME}] Not process: {event:?}."),
-            )
-            .await;
+            trace!(msg_tx, format!("[{NAME}] Not process: {event:?}."));
         }
     }
 }
 
 async fn process_event_conn_ack(msg_tx: &Sender<Msg>) {
-    log(
-        msg_tx,
-        Reply::Device(cfg::name()),
-        Trace,
-        format!("[{NAME}] <- connAck"),
-    )
-    .await;
+    trace!(msg_tx, format!("[{NAME}] <- connAck"));
 
     msg::cmd(
         msg_tx,
-        Reply::Device(cfg::name()),
+        reply_me!(),
         plugin_system::NAME.to_owned(),
         msg::ACT_UPDATE.to_owned(),
         vec![],
@@ -184,13 +140,7 @@ async fn process_event_publish(msg_tx: &Sender<Msg>, publish: &Publish) {
     if process_event_publish_nas(msg_tx, publish).await {
         return;
     }
-    log(
-        msg_tx,
-        Reply::Device(cfg::name()),
-        Trace,
-        format!("[{NAME}] <- ({publish:?})"),
-    )
-    .await;
+    trace!(msg_tx, format!("[{NAME}] <- ({publish:?})"));
 }
 
 fn parse(input: &str) -> Vec<String> {
@@ -218,47 +168,26 @@ async fn process_event_publish_ask(msg_tx: &Sender<Msg>, publish: &Publish) -> b
 
             let payload_vec: Vec<String> = parse(&dec_payload);
 
-            log(
+            trace!(
                 msg_tx,
-                Reply::Device(cfg::name()),
-                Trace,
-                format!("[{NAME}] <- publish::ask: {name}, '{dec_payload}'"),
-            )
-            .await;
+                format!("[{NAME}] <- pub::ask: {name}, '{dec_payload}'")
+            );
 
             if name == cfg::name() {
                 if let Some(t) = payload_vec.first() {
                     if t != "r" {
-                        log(
-                            msg_tx,
-                            Reply::Device(cfg::name()),
-                            Error,
-                            format!("[{NAME}] r is missing."),
-                        )
-                        .await;
+                        error!(msg_tx, format!("[{NAME}] r is missing."));
                         return true;
                     }
                 } else {
-                    log(
-                        msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] r is missing."),
-                    )
-                    .await;
+                    error!(msg_tx, format!("[{NAME}] r is missing."));
                     return true;
                 };
 
                 let reply = if let Some(t) = payload_vec.get(1) {
                     Reply::Device(t.to_owned())
                 } else {
-                    log(
-                        msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] reply is missing."),
-                    )
-                    .await;
+                    error!(msg_tx, format!("[{NAME}] reply is missing."));
                     return true;
                 };
 
@@ -315,21 +244,12 @@ async fn process_event_publish_reply(msg_tx: &Sender<Msg>, publish: &Publish) ->
                 let payload = std::str::from_utf8(&publish.payload).unwrap();
                 let dec_payload = utils::decrypt(&cfg::key(), payload).unwrap();
 
-                log(
+                trace!(
                     msg_tx,
-                    Reply::Device(cfg::name()),
-                    Trace,
-                    format!("[{NAME}] <- publish::reply: {name}, '{dec_payload}'"),
-                )
-                .await;
+                    format!("[{NAME}] <- pub::reply: {name}, '{dec_payload}'")
+                );
 
-                log(
-                    msg_tx,
-                    Reply::Device(cfg::name()),
-                    Info,
-                    format!("R: {dec_payload}"),
-                )
-                .await;
+                info!(msg_tx, format!("R: {dec_payload}"));
             }
         }
 
@@ -369,27 +289,21 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 let onboard = match payload.parse::<u64>() {
                     Ok(t) => t,
                     Err(e) => {
-                        log(
+                        error!(
                             msg_tx,
-                            Reply::Device(cfg::name()),
-                            Error,
-                            format!("[{NAME}] Error: <- publish::onboard: {name}: {e:?}."),
-                        )
-                        .await;
+                            format!("[{NAME}] Error: <- pub::onboard: {name}: {e:?}.")
+                        );
                         return true;
                     }
                 };
 
                 if onboard != 0 && onboard != 1 {
-                    log(
+                    error!(
                         msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
                         format!(
-                            "[{NAME}] Error: <- publish::onboard: {name}. Wrong onboard: '{onboard}'."
-                        ),
-                    )
-                    .await;
+                            "[{NAME}] Error: <- pub::onboard: {name}. Wrong onboard: '{onboard}'."
+                        )
+                    );
                     return true;
                 }
 
@@ -412,13 +326,10 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 let app_uptime = match payload.parse::<u64>() {
                     Ok(t) => t,
                     Err(e) => {
-                        log(
+                        error!(
                             msg_tx,
-                            Reply::Device(cfg::name()),
-                            Error,
-                            format!("[{NAME}] Error: <- publish::app_uptime: {name}. Wrong uptime: {payload}: {e:?}."),
-                        )
-                        .await;
+                            format!("[{NAME}] Error: <- pub::app_uptime: {name}. Wrong uptime: {payload}: {e:?}.")
+                        );
                         return true;
                     }
                 };
@@ -441,13 +352,10 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 let host_uptime = match payload.parse::<u64>() {
                     Ok(t) => t,
                     Err(e) => {
-                        log(
+                        error!(
                             msg_tx,
-                            Reply::Device(cfg::name()),
-                            Error,
-                            format!("[{NAME}] Error: <- publish::host_uptime: {name}. Wrong uptime: {payload}: {e:?}."),
-                        )
-                        .await;
+                            format!("[{NAME}] Error: <- pub::host_uptime: {name}. Wrong uptime: {payload}: {e:?}.")
+                        );
                         return true;
                     }
                 };
@@ -484,13 +392,10 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 let temperature = match payload.parse::<f32>() {
                     Ok(t) => t,
                     Err(e) => {
-                        log(
+                        error!(
                             msg_tx,
-                            Reply::Device(cfg::name()),
-                            Error,
-                            format!("[{NAME}] Error: <- publish::temperature: {name}: Wrong temperature: {payload}: {e:?}."),
-                        )
-                        .await;
+                            format!("[{NAME}] Error: <- pub::temperature: {name}: Wrong temperature: {payload}: {e:?}.")
+                        );
                         return true;
                     }
                 };
@@ -569,13 +474,10 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 let cpu_usage = match payload.parse::<f32>() {
                     Ok(t) => t,
                     Err(e) => {
-                        log(
+                        error!(
                             msg_tx,
-                            Reply::Device(cfg::name()),
-                            Error,
-                            format!("[{NAME}] Error: <- publish::cpu_usage: {name}: Wrong cpu_usage: {payload}: {e:?}."),
-                        )
-                        .await;
+                            format!("[{NAME}] Error: <- pub::cpu_usage: {name}: Wrong cpu_usage: {payload}: {e:?}.")
+                        );
                         return true;
                     }
                 };
@@ -598,13 +500,10 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 let memory_usage = match payload.parse::<f32>() {
                     Ok(t) => t,
                     Err(e) => {
-                        log(
+                        error!(
                             msg_tx,
-                            Reply::Device(cfg::name()),
-                            Error,
-                            format!("[{NAME}] Error: <- publish::memory_usage: {name}: Wrong memory_usage: {payload}: {e:?}."),
-                        )
-                        .await;
+                            format!("[{NAME}] Error: <- pub::memory_usage: {name}: Wrong memory_usage: {payload}: {e:?}.")
+                        );
                         return true;
                     }
                 };
@@ -627,13 +526,10 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 let disk_usage = match payload.parse::<f32>() {
                     Ok(t) => t,
                     Err(e) => {
-                        log(
+                        error!(
                             msg_tx,
-                            Reply::Device(cfg::name()),
-                            Error,
-                            format!("[{NAME}] Error: <- publish::disk_usage: {name}: Wrong disk_usage: {payload}: {e:?}."),
-                        )
-                        .await;
+                            format!("[{NAME}] Error: <- pub::disk_usage: {name}: Wrong disk_usage: {payload}: {e:?}.")
+                        );
                         return true;
                     }
                 };
@@ -653,24 +549,18 @@ async fn process_event_publish_system(msg_tx: &Sender<Msg>, publish: &Publish) -
                 )
             }
             _ => {
-                log(
+                error!(
                     msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] Error: <- publish: {name}. Unknown key: '{key}'."),
-                )
-                .await;
+                    format!("[{NAME}] Error: <- pub: {name}. Unknown key: '{key}'.")
+                );
                 return true;
             }
         };
 
-        log(
+        trace!(
             msg_tx,
-            Reply::Device(cfg::name()),
-            Trace,
-            format!("[{NAME}] <- publish::{key}: {name}, '{payload}'"),
-        )
-        .await;
+            format!("[{NAME}] <- pub::{key}: {name}, '{payload}'")
+        );
 
         // update the last seen if onboard is true OR any of uptime, version, temperature, os, cpu_arch, cpu_usage, memory_usage, disk_usage, weather is not None
         let last_seen = if (onboard.is_some() && onboard.unwrap())
@@ -736,17 +626,14 @@ async fn process_event_publish_file(msg_tx: &Sender<Msg>, publish: &Publish) -> 
                     .map(|s| s.to_string())
                     .collect();
 
-                log(
+                trace!(
                     msg_tx,
-                    Reply::Device(cfg::name()),
-                    Trace,
-                    format!("[{NAME}] <- publish::reply: {name}, '{dec_payload}'"),
-                )
-                .await;
+                    format!("[{NAME}] <- pub::reply: {name}, '{dec_payload}'")
+                );
 
                 msg::cmd(
                     msg_tx,
-                    Reply::Device(cfg::name()),
+                    reply_me!(),
                     plugin_file::NAME.to_owned(),
                     msg::ACT_FILE.to_owned(),
                     payload_vec,
@@ -778,17 +665,14 @@ async fn process_event_publish_nas(msg_tx: &Sender<Msg>, publish: &Publish) -> b
                     .map(|s| s.to_string())
                     .collect();
 
-                log(
+                trace!(
                     msg_tx,
-                    Reply::Device(cfg::name()),
-                    Trace,
-                    format!("[{NAME}] <- publish::reply: {name}, '{dec_payload}'"),
-                )
-                .await;
+                    format!("[{NAME}] <- pub::reply: {name}, '{dec_payload}'")
+                );
 
                 msg::cmd(
                     msg_tx,
-                    Reply::Device(cfg::name()),
+                    reply_me!(),
                     plugin_nas::NAME.to_owned(),
                     msg::ACT_NAS.to_owned(),
                     payload_vec,

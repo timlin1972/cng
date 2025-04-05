@@ -9,12 +9,16 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use log::Level::Info;
+use log::Level::{Error, Info};
 
 use crate::cfg;
 use crate::msg::{self, log, Msg, Reply};
+use crate::utils;
+use crate::{error, info, reply_me, unknown};
 
 pub const NAME: &str = "nas";
+
+const DEBOUNCE_DELAY: u64 = 10; // seconds
 
 type DebounceMap = Arc<Mutex<HashMap<(String, EventKind), tokio::task::JoinHandle<()>>>>;
 
@@ -24,7 +28,7 @@ pub fn monitor(msg_tx: Sender<Msg>) {
 
         let path_to_watch = Path::new(cfg::FILE_FOLDER);
 
-        let (tx, mut rx) = mpsc::channel(100);
+        let (tx, mut rx) = mpsc::channel(1024);
 
         let _watcher_handle = task::spawn_blocking(move || {
             let mut watcher = RecommendedWatcher::new(
@@ -46,13 +50,7 @@ pub fn monitor(msg_tx: Sender<Msg>) {
             }
         });
 
-        log(
-            &msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] Monitoring {path_to_watch:?}"),
-        )
-        .await;
+        info!(&msg_tx, format!("[{NAME}] Monitoring {path_to_watch:?}"));
 
         while let Some(event) = rx.recv().await {
             for path in &event.paths {
@@ -72,7 +70,7 @@ pub fn monitor(msg_tx: Sender<Msg>) {
 
                 // spawn a new task with a debounce delay
                 let handle = tokio::spawn(async move {
-                    sleep(Duration::from_millis(1000)).await;
+                    sleep(Duration::from_secs(DEBOUNCE_DELAY)).await;
                     handle_event(event_clone, &msg_tx_clone).await;
                 });
 
@@ -100,20 +98,21 @@ async fn handle_event(event: Event, msg_tx_clone: &Sender<Msg>) {
             for path in event.paths.iter() {
                 let filename = monitor_get_file(path.to_str().unwrap());
 
-                log(
+                info!(
                     msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    Info,
-                    format!("[{NAME}][monitor] File is modified: {filename}"),
-                )
-                .await;
+                    format!("[{NAME}][monitor] File is modified: {filename}")
+                );
 
                 msg::cmd(
                     msg_tx_clone,
-                    Reply::Device(cfg::name()),
+                    reply_me!(),
                     NAME.to_owned(),
                     msg::ACT_NAS.to_owned(),
-                    vec!["remote_modify".to_owned(), filename.to_owned()],
+                    vec![
+                        "remote_modify".to_owned(),
+                        filename.to_owned(),
+                        utils::ts().to_string(),
+                    ],
                 )
                 .await;
             }
@@ -122,17 +121,14 @@ async fn handle_event(event: Event, msg_tx_clone: &Sender<Msg>) {
             for path in event.paths.iter() {
                 let filename = monitor_get_file(path.to_str().unwrap());
 
-                log(
+                info!(
                     msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    Info,
-                    format!("[{NAME}][monitor] File is removed: {filename}"),
-                )
-                .await;
+                    format!("[{NAME}][monitor] File is removed: {filename}")
+                );
 
                 msg::cmd(
                     msg_tx_clone,
-                    Reply::Device(cfg::name()),
+                    reply_me!(),
                     NAME.to_owned(),
                     msg::ACT_NAS.to_owned(),
                     vec!["remote_remove".to_owned(), filename.to_owned()],
@@ -142,13 +138,7 @@ async fn handle_event(event: Event, msg_tx_clone: &Sender<Msg>) {
         }
         notify::event::EventKind::Access(_) => (),
         _ => {
-            log(
-                msg_tx_clone,
-                Reply::Device(cfg::name()),
-                Info,
-                format!("[{NAME}] Unhandled event: {event:?}"),
-            )
-            .await;
+            unknown!(msg_tx_clone, NAME, event);
         }
     }
 }

@@ -6,6 +6,7 @@ use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::panels::panels_main;
 use crate::plugins::plugins_main;
+use crate::{error, info, init, unknown};
 
 pub const NAME: &str = "log";
 
@@ -26,13 +27,7 @@ impl Plugin {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn show(&mut self, cmd: &Cmd) {
@@ -74,20 +69,16 @@ impl Plugin {
     }
 
     async fn help(&self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
             format!(
                 "[{NAME}] {ACT_HELP}, {ACT_INIT}, {ACT_SHOW}, {ACT_TRACE} [0-1]",
-                NAME = NAME,
                 ACT_HELP = msg::ACT_HELP,
                 ACT_INIT = msg::ACT_INIT,
                 ACT_SHOW = msg::ACT_SHOW,
                 ACT_TRACE = msg::ACT_TRACE,
-            ),
-        )
-        .await;
+            )
+        );
     }
 }
 
@@ -105,13 +96,7 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_SHOW => self.show(cmd).await,
                 msg::ACT_TRACE => self.trace(cmd).await,
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             // redirect log to panels
@@ -138,13 +123,7 @@ impl plugins_main::Plugin for Plugin {
                 _ => (),
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

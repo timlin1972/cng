@@ -12,6 +12,7 @@ use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, Msg, Reply};
 use crate::plugins::mongodb::utils;
 use crate::plugins::plugins_main;
+use crate::{error, info, init, unknown};
 
 pub const NAME: &str = "todos";
 
@@ -46,33 +47,18 @@ impl Plugin {
         match utils::connect(&cfg::db()).await {
             Ok(t) => {
                 self.client = Some(t);
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Info,
-                    format!("[{NAME}] DB connected"),
-                )
-                .await;
+                info!(&self.msg_tx, format!("[{NAME}] DB connected"));
             }
             Err(e) => {
                 self.client = None;
-                log(
+                error!(
                     &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] Failed to connect to DB: {:?}", e),
-                )
-                .await;
+                    format!("[{NAME}] Failed to connect to DB: {:?}", e)
+                );
             }
         }
 
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn show(&mut self, cmd: &Cmd) {
@@ -213,23 +199,11 @@ impl plugins_main::Plugin for Plugin {
                 msg::ACT_SHOW => self.show(cmd).await,
                 msg::ACT_ADD => self.add(cmd).await,
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown action: {:?}", cmd.action),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, cmd.action);
                 }
             },
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 

@@ -8,6 +8,8 @@ use crate::cfg;
 use crate::command::{self, Cli, Commands};
 use crate::msg::{self, log, Data, Msg, Reply};
 use crate::panels::panels_main::{self, PanelInfo, Popup};
+use crate::utils;
+use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "Brief";
 
@@ -74,28 +76,19 @@ impl panels_main::Panel for Panel {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.panel_info.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.panel_info.msg_tx, NAME);
     }
 
     async fn msg(&mut self, msg: &Msg) {
         match &msg.data {
             Data::Log(log) => {
-                panels_main::output_push(&mut self.panel_info.output, log.msg.clone());
+                panels_main::output_push(
+                    &mut self.panel_info.output,
+                    format!("{} {}", utils::ts_str(msg.ts), log.msg.clone()),
+                );
             }
             _ => {
-                log(
-                    &self.panel_info.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.panel_info.msg_tx, NAME, msg);
             }
         }
     }
@@ -353,14 +346,7 @@ impl panels_main::Panel for Panel {
                 action,
                 data,
             }) => {
-                msg::cmd(
-                    &self.panel_info.msg_tx,
-                    Reply::Device(cfg::name()),
-                    plugin,
-                    action,
-                    data,
-                )
-                .await;
+                msg::cmd(&self.panel_info.msg_tx, reply_me!(), plugin, action, data).await;
             }
             None => {
                 panels_main::output_push(&mut self.panel_info.output, "".to_owned());

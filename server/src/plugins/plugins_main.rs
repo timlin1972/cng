@@ -8,6 +8,7 @@ use crate::plugins::{
     plugin_devices, plugin_file, plugin_log, plugin_mqtt, plugin_nas, plugin_ping, plugin_shell,
     plugin_stocks, plugin_system, plugin_todos, plugin_weather, plugin_wol, plugin_worldtime,
 };
+use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "plugins";
 
@@ -44,17 +45,12 @@ impl Plugins {
     }
 
     pub async fn init(&mut self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
+
         for plugin in &mut self.plugins {
             cmd(
                 &self.msg_tx,
-                Reply::Device(cfg::name()),
+                reply_me!(),
                 plugin.name().to_owned(),
                 "init".to_owned(),
                 vec![],
@@ -80,13 +76,7 @@ impl Plugins {
     }
 
     async fn help(&self) {
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] help: init, show", NAME = NAME,),
-        )
-        .await;
+        info!(&self.msg_tx, format!("[{NAME}] help: init, show"));
     }
 
     pub async fn msg(&mut self, msg: &Msg) -> bool {
@@ -107,13 +97,7 @@ impl Plugins {
                     }
                 },
                 _ => {
-                    log(
-                        &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] unknown msg: {msg:?}"),
-                    )
-                    .await;
+                    unknown!(&self.msg_tx, NAME, msg);
                 }
             }
         } else {
@@ -123,7 +107,7 @@ impl Plugins {
                     let reply = if let Data::Cmd(cmd) = &msg.data {
                         cmd.reply.clone()
                     } else {
-                        Reply::Device(cfg::name())
+                        reply_me!()
                     };
 
                     log(

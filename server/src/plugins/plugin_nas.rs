@@ -1,90 +1,19 @@
-use std::fs::{self, File};
-use std::io::{BufReader, Read, Write};
+use std::fs;
 use std::path::Path;
 use std::str;
 
 use async_trait::async_trait;
-use chrono::NaiveDate;
 use log::Level::{Error, Info};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{self, Sender};
-use tokio::time::{timeout, Duration};
 
 use crate::cfg;
 use crate::msg::{self, log, Cmd, Data, DevInfo, Msg, Reply};
-use crate::plugins::nas::{files_data, monitor};
+use crate::plugins::nas::{backup, client, monitor, server};
 use crate::plugins::{plugin_mqtt, plugins_main};
 use crate::utils;
+use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "nas";
-
-const LISTENING: &str = "0.0.0.0";
-const SERVER_PORT: u16 = 9760;
-const CLIENT_PORT: u16 = 9761;
-
-const BACKUP_DIR: &str = "./backup";
-
-struct SyncAction {
-    action: String, // GET or PUT
-    filename: String,
-}
-
-fn create_sync_actions(
-    files_data_nas: &files_data::FilesData,
-    files_data_local: &files_data::FilesData,
-) -> Vec<SyncAction> {
-    let mut sync_actions: Vec<SyncAction> = vec![];
-
-    for file_nas in &files_data_nas.files_data {
-        match files_data_local
-            .files_data
-            .iter()
-            .find(|d| d.filename == file_nas.filename)
-        {
-            None => sync_actions.push(SyncAction {
-                action: "GET".to_owned(),
-                filename: file_nas.filename.clone(),
-            }),
-            Some(t) => {
-                if t.md5 != file_nas.md5 {
-                    if t.modified < file_nas.modified {
-                        sync_actions.push(SyncAction {
-                            action: "GET".to_owned(),
-                            filename: file_nas.filename.clone(),
-                        })
-                    } else {
-                        sync_actions.push(SyncAction {
-                            action: "PUT".to_owned(),
-                            filename: file_nas.filename.clone(),
-                        })
-                    }
-                }
-            }
-        }
-    }
-
-    for file_local in &files_data_local.files_data {
-        if !files_data_nas
-            .files_data
-            .iter()
-            .any(|d| d.filename == file_local.filename)
-        {
-            sync_actions.push(SyncAction {
-                action: "PUT".to_owned(),
-                filename: file_local.filename.clone(),
-            })
-        }
-    }
-
-    sync_actions
-}
-
-#[derive(Debug)]
-struct ClientMsg {
-    action: String,
-    data: Vec<String>,
-}
 
 #[derive(Debug, Clone)]
 struct DevInfoNas {
@@ -100,8 +29,9 @@ pub struct Plugin {
     msg_tx: Sender<Msg>,
     tailscale_ip: String,
     devices: Vec<DevInfoNas>,
-    client_tx: Option<Sender<ClientMsg>>,
+    client_tx: Option<Sender<client::ClientMsg>>,
     sync: bool,
+    sync_tx: Option<Sender<bool>>,
 }
 
 impl Plugin {
@@ -113,47 +43,54 @@ impl Plugin {
             devices: vec![],
             client_tx: None,
             sync: false,
+            sync_tx: None,
         }
     }
 
     async fn init(&mut self) {
         // NAS: start the client
         if cfg::name() == cfg::nas() {
-            let (client_tx, client_rx) = mpsc::channel(100);
+            let (client_tx, client_rx) = mpsc::channel(1024);
             self.client_tx = Some(client_tx);
-            client(self.msg_tx.clone(), client_rx, self.tailscale_ip.clone());
+            client::client(self.msg_tx.clone(), client_rx, self.tailscale_ip.clone());
         }
 
         // Not NAS: start the server
         if cfg::name() != cfg::nas() {
-            server(self.msg_tx.clone());
+            server::server(self.msg_tx.clone());
         }
 
         // NAS: start the backup
         if cfg::name() == cfg::nas() {
-            backup(self.msg_tx.clone());
+            backup::backup(self.msg_tx.clone());
         }
 
         // monitor CFG::FILE_FOLDER
-        monitor::monitor(self.msg_tx.clone());
+        if cfg::name() == cfg::nas() {
+            monitor::monitor(self.msg_tx.clone());
+        } else {
+            let (sync_tx, mut sync_rx) = mpsc::channel(512);
+            self.sync_tx = Some(sync_tx);
+            let msg_tx_clone = self.msg_tx.clone();
+            tokio::spawn(async move {
+                let mut monitor_started = false;
+                while let Some(sync) = sync_rx.recv().await {
+                    if !monitor_started && sync {
+                        monitor::monitor(msg_tx_clone.clone());
+                        monitor_started = true;
+                    }
+                }
+            });
+        }
 
-        log(
-            &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.msg_tx, NAME);
     }
 
     async fn help(&self) {
-        log(
+        info!(
             &self.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] {ACT_SHOW}", NAME = NAME, ACT_SHOW = msg::ACT_SHOW,),
-        )
-        .await;
+            format!("[{NAME}] {ACT_SHOW}", ACT_SHOW = msg::ACT_SHOW)
+        );
     }
 
     async fn show_devices(&self, cmd: &Cmd) {
@@ -226,25 +163,23 @@ impl Plugin {
     async fn update_device(&mut self, devices: &[DevInfo]) {
         async fn send_sync_device(
             msg_tx: &Sender<Msg>,
-            client_tx: Option<&Sender<ClientMsg>>,
+            client_tx: Option<&Sender<client::ClientMsg>>,
             device_nas: &DevInfoNas,
         ) {
             if cfg::name() == cfg::nas() && is_ready_to_sync(device_nas) {
-                log(
+                info!(
                     msg_tx,
-                    Reply::Device(cfg::name()),
-                    Info,
-                    format!("[{NAME}] Device ready: {}", device_nas.name),
-                )
-                .await;
+                    format!("[{NAME}] Device ready: {}", device_nas.name)
+                );
 
                 client_tx
                     .unwrap()
-                    .send(ClientMsg {
+                    .send(client::ClientMsg {
                         action: "SYNC_DEVICE".to_owned(),
                         data: vec![
                             device_nas.name.clone(),
                             device_nas.tailscale_ip.clone().unwrap(),
+                            u64::MAX.to_string(),
                         ],
                     })
                     .await
@@ -262,13 +197,10 @@ impl Plugin {
                         tailscale_ip: device.tailscale_ip.clone(),
                         sync: false,
                     };
-                    log(
+                    info!(
                         &self.msg_tx,
-                        Reply::Device(cfg::name()),
-                        Info,
-                        format!("[{NAME}] Device new: {}", device_nas.name),
-                    )
-                    .await;
+                        format!("[{NAME}] Device new: {}", device_nas.name)
+                    );
 
                     send_sync_device(&self.msg_tx, self.client_tx.as_ref(), &device_nas).await;
                     self.devices.push(device_nas);
@@ -296,13 +228,9 @@ impl Plugin {
                 Some(sync) => {
                     self.sync = sync == "true";
                     if self.sync {
-                        log(
-                            &self.msg_tx,
-                            Reply::Device(cfg::name()),
-                            Info,
-                            format!("[{NAME}] Synced"),
-                        )
-                        .await;
+                        info!(&self.msg_tx, format!("[{NAME}] Synced"));
+
+                        self.sync_tx.as_ref().unwrap().send(true).await.unwrap();
                     }
                 }
                 None => {
@@ -333,6 +261,8 @@ impl Plugin {
             }
             "remote_modify" => {
                 let filename = cmd.data.get(1).unwrap();
+                let remote_modify_time = cmd.data.get(2).unwrap();
+
                 log(
                     &self.msg_tx,
                     cmd.reply.clone(),
@@ -347,7 +277,7 @@ impl Plugin {
                     // ask NAS_SERVER to sync
                     msg::cmd(
                         &self.msg_tx,
-                        Reply::Device(cfg::name()),
+                        reply_me!(),
                         plugin_mqtt::NAME.to_owned(),
                         msg::ACT_ASK.to_owned(),
                         vec![
@@ -358,6 +288,7 @@ impl Plugin {
                             "ask_sync".to_owned(),
                             cfg::name().to_owned(),
                             self.tailscale_ip.to_owned(),
+                            remote_modify_time.to_owned(),
                         ],
                     )
                     .await;
@@ -377,11 +308,12 @@ impl Plugin {
                             self.client_tx
                                 .as_ref()
                                 .unwrap()
-                                .send(ClientMsg {
+                                .send(client::ClientMsg {
                                     action: "SYNC_DEVICE".to_owned(),
                                     data: vec![
                                         device.name.clone(),
                                         device.tailscale_ip.clone().unwrap(),
+                                        remote_modify_time.to_owned(),
                                     ],
                                 })
                                 .await
@@ -393,6 +325,7 @@ impl Plugin {
             "ask_sync" => {
                 let device_name = cmd.data.get(1).unwrap();
                 let device_tailscale_ip = cmd.data.get(2).unwrap();
+                let remote_modify_time = cmd.data.get(3).unwrap();
                 log(
                     &self.msg_tx,
                     cmd.reply.clone(),
@@ -404,9 +337,13 @@ impl Plugin {
                 self.client_tx
                     .as_ref()
                     .unwrap()
-                    .send(ClientMsg {
+                    .send(client::ClientMsg {
                         action: "SYNC_DEVICE".to_owned(),
-                        data: vec![device_name.to_owned(), device_tailscale_ip.to_owned()],
+                        data: vec![
+                            device_name.to_owned(),
+                            device_tailscale_ip.to_owned(),
+                            remote_modify_time.to_owned(),
+                        ],
                     })
                     .await
                     .unwrap();
@@ -510,546 +447,12 @@ impl plugins_main::Plugin for Plugin {
                 self.update_device(devices).await;
             }
             _ => {
-                log(
-                    &self.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] Unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.msg_tx, NAME, msg);
             }
         }
 
         false
     }
-}
-
-fn backup(msg_tx_clone: Sender<Msg>) {
-    tokio::spawn(async move {
-        loop {
-            // check if backup is needed
-            // backup dir is BACKUP_DIR+current_date (e.g. ./backup/2023-10-01)
-            let now = chrono::Local::now();
-            let date = now.format("%Y-%m-%d").to_string();
-            let backup_dir = format!("{BACKUP_DIR}/{date}");
-            if !Path::new(&backup_dir).exists() {
-                fs::create_dir_all(&backup_dir).unwrap();
-
-                // copy all files from cfg::FILE_FOLDER to backup_dir recursively
-                let files = get_all_files_recursively(Path::new(cfg::FILE_FOLDER));
-                for file in &files {
-                    let src = Path::new(file);
-                    let dst =
-                        Path::new(&backup_dir).join(src.strip_prefix("./shared").unwrap_or(src));
-                    if let Some(parent) = dst.parent() {
-                        fs::create_dir_all(parent).unwrap();
-                    }
-                    fs::copy(src, dst).unwrap();
-                }
-
-                log(
-                    &msg_tx_clone,
-                    Reply::Device(cfg::name()),
-                    Info,
-                    format!("[{NAME}] Backup created: {backup_dir}"),
-                )
-                .await;
-
-                // we keep at most 7 days of backup
-                let keep_latest_n = 7;
-                let mut date_dirs: Vec<(NaiveDate, String)> = fs::read_dir(BACKUP_DIR)
-                    .unwrap()
-                    .filter_map(|entry| {
-                        let entry = entry.ok().unwrap();
-                        let name = entry.file_name().to_string_lossy().into_owned();
-
-                        match NaiveDate::parse_from_str(&name, "%Y-%m-%d") {
-                            Ok(date) => Some((date, name)),
-                            Err(_) => None,
-                        }
-                    })
-                    .collect();
-
-                date_dirs.sort_by_key(|(date, _)| *date);
-
-                if date_dirs.len() > keep_latest_n {
-                    let to_delete = &date_dirs[..date_dirs.len() - keep_latest_n];
-                    for (_, name) in to_delete {
-                        let path = Path::new(BACKUP_DIR).join(name);
-                        if path.is_dir() {
-                            log(
-                                &msg_tx_clone,
-                                Reply::Device(cfg::name()),
-                                Info,
-                                format!("[{NAME}] Backup removed: {}", path.display()),
-                            )
-                            .await;
-                            fs::remove_dir_all(path).unwrap();
-                        }
-                    }
-                }
-            }
-
-            // sleep for 4 hours
-            tokio::time::sleep(Duration::from_secs(4 * 60 * 60)).await;
-        }
-    });
-}
-
-fn client(
-    msg_tx_clone: Sender<Msg>,
-    mut client_rx: mpsc::Receiver<ClientMsg>,
-    tailscale_ip: String,
-) {
-    tokio::spawn(async move {
-        log(
-            &msg_tx_clone,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] Client started"),
-        )
-        .await;
-
-        while let Some(event) = client_rx.recv().await {
-            match event.action.as_str() {
-                "SYNC_DEVICE" => {
-                    let device_name = &event.data[0];
-                    let device_tailscale_ip = &event.data[1];
-                    if device_tailscale_ip == &tailscale_ip {
-                        continue;
-                    }
-
-                    let files_data = files_data::get_files_data(Path::new(cfg::FILE_FOLDER));
-                    let files_data_str = serde_json::to_string(&files_data).unwrap();
-
-                    // send files_data
-                    {
-                        let mut stream = match TcpStream::connect(format!(
-                            "{device_tailscale_ip}:{CLIENT_PORT}"
-                        ))
-                        .await
-                        {
-                            Ok(s) => s,
-                            Err(e) => {
-                                log(
-                                    &msg_tx_clone,
-                                    Reply::Device(cfg::name()),
-                                    Error,
-                                    format!("[{NAME}] Failed to connect to {device_tailscale_ip}:{CLIENT_PORT}. Err: {e}"),
-                                )
-                                .await;
-                                continue;
-                            }
-                        };
-
-                        let request = format!("PUT files_data {tailscale_ip}\n");
-                        stream.write_all(request.as_bytes()).await.unwrap();
-                        stream.write_all(files_data_str.as_bytes()).await.unwrap();
-                        log(
-                            &msg_tx_clone,
-                            Reply::Device(cfg::name()),
-                            Info,
-                            format!(
-                                "[{NAME}] Sent files_data to: {device_name}:{device_tailscale_ip}"
-                            ),
-                        )
-                        .await;
-                    }
-
-                    // accept Non-NAS to send GET/PUT
-                    let listening = format!("{LISTENING}:{SERVER_PORT}");
-                    let listener = TcpListener::bind(&listening).await.unwrap();
-                    log(
-                        &msg_tx_clone,
-                        Reply::Device(cfg::name()),
-                        Info,
-                        format!("[{NAME}] Listening on {listening}"),
-                    )
-                    .await;
-
-                    loop {
-                        let (mut socket, addr) = listener.accept().await.unwrap();
-
-                        let mut buffer = [0; 1024];
-                        match timeout(Duration::from_secs(10), socket.read(&mut buffer)).await {
-                            Ok(Ok(size)) if size > 0 => {
-                                let mut received_data = Vec::new();
-                                received_data.extend_from_slice(&buffer[..size]);
-
-                                let pos = received_data.iter().position(|&b| b == b'\n').unwrap();
-
-                                let command = &received_data[..=pos];
-                                let command = String::from_utf8_lossy(command).trim().to_string();
-                                received_data.drain(..=pos);
-
-                                log(
-                                    &msg_tx_clone,
-                                    Reply::Device(cfg::name()),
-                                    Info,
-                                    format!("[{NAME}] Recv: from {addr} '{command}'"),
-                                )
-                                .await;
-
-                                // GET filename
-                                if let Some(filename) = command.strip_prefix("GET ") {
-                                    let filename = Path::new(filename);
-                                    if filename.exists() {
-                                        match File::open(filename) {
-                                            Ok(mut file) => {
-                                                let mut contents = Vec::new();
-                                                file.read_to_end(&mut contents).unwrap();
-                                                if socket.write_all(&contents).await.is_err() {
-                                                    log(
-                                                        &msg_tx_clone,
-                                                        Reply::Device(cfg::name()),
-                                                        Error,
-                                                        format!(
-                                                            "[{NAME}] Failed to send file contents"
-                                                        ),
-                                                    )
-                                                    .await;
-
-                                                    break;
-                                                }
-                                            }
-                                            Err(e) => {
-                                                log(
-                                                    &msg_tx_clone,
-                                                    Reply::Device(cfg::name()),
-                                                    Error,
-                                                    format!("[{NAME}] Failed to open file {filename:?}. Err: {e}"),
-                                                )
-                                                .await;
-                                            }
-                                        }
-                                    } else {
-                                        log(
-                                            &msg_tx_clone,
-                                            Reply::Device(cfg::name()),
-                                            Error,
-                                            format!("[{NAME}] ERROR: File not found"),
-                                        )
-                                        .await;
-
-                                        if socket.write_all(b"ERROR: File not found").await.is_err()
-                                        {
-                                            log(
-                                                &msg_tx_clone,
-                                                Reply::Device(cfg::name()),
-                                                Error,
-                                                format!("[{NAME}] Failed to send error message"),
-                                            )
-                                            .await;
-
-                                            break;
-                                        }
-                                    }
-                                    continue;
-                                }
-
-                                // PUT filename
-                                if let Some(filename) = command.strip_prefix("PUT ") {
-                                    while let Ok(size) = socket.read(&mut buffer).await {
-                                        if size == 0 {
-                                            break;
-                                        }
-                                        received_data.extend_from_slice(&buffer[..size]);
-                                    }
-
-                                    let filename = Path::new(filename);
-
-                                    // Ensure the parent directories exist
-                                    if let Some(parent) = filename.parent() {
-                                        fs::create_dir_all(parent).unwrap();
-                                    }
-
-                                    let mut file = File::create(filename).unwrap();
-                                    file.write_all(&received_data).unwrap();
-
-                                    continue;
-                                }
-
-                                // END
-                                if command.strip_prefix("END").is_some() {
-                                    msg::cmd(
-                                        &msg_tx_clone,
-                                        Reply::Device(cfg::name()),
-                                        NAME.to_owned(),
-                                        msg::ACT_NAS.to_owned(),
-                                        vec!["sync_remote".to_owned(), device_name.to_owned()],
-                                    )
-                                    .await;
-
-                                    break;
-                                }
-                            }
-                            Ok(Ok(0)) => {
-                                log(
-                                    &msg_tx_clone,
-                                    Reply::Device(cfg::name()),
-                                    Error,
-                                    format!("[{NAME}] ⚠️ 客戶端關閉連線"),
-                                )
-                                .await;
-
-                                break;
-                            }
-                            Ok(Err(e)) => {
-                                log(
-                                    &msg_tx_clone,
-                                    Reply::Device(cfg::name()),
-                                    Error,
-                                    format!("[{NAME}] ❌ 讀取錯誤: {e}"),
-                                )
-                                .await;
-
-                                break;
-                            }
-                            Err(_) => {
-                                log(
-                                    &msg_tx_clone,
-                                    Reply::Device(cfg::name()),
-                                    Error,
-                                    format!("[{NAME}] ⏰ 讀取超時，跳過這次連線"),
-                                )
-                                .await;
-
-                                break;
-                            }
-                            _ => {
-                                log(
-                                    &msg_tx_clone,
-                                    Reply::Device(cfg::name()),
-                                    Error,
-                                    format!("[{NAME}] Error reading from socket"),
-                                )
-                                .await;
-
-                                break;
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    log(
-                        &msg_tx_clone,
-                        Reply::Device(cfg::name()),
-                        Error,
-                        format!("[{NAME}] Unknown event: {event:?}"),
-                    )
-                    .await;
-                }
-            }
-        }
-    });
-}
-
-fn server(msg_tx_clone: Sender<Msg>) {
-    tokio::spawn(async move {
-        let listening = format!("{LISTENING}:{CLIENT_PORT}");
-        let listener = TcpListener::bind(&listening).await.unwrap();
-        log(
-            &msg_tx_clone,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] Listening on {listening}"),
-        )
-        .await;
-
-        loop {
-            let (mut socket, addr) = listener.accept().await.unwrap();
-
-            let msg_tx_clone = msg_tx_clone.clone();
-            tokio::spawn(async move {
-                let mut buffer = [0; 1024];
-                match socket.read(&mut buffer).await {
-                    Ok(size) if size > 0 => {
-                        let mut received_data = Vec::new();
-                        received_data.extend_from_slice(&buffer[..size]);
-
-                        let pos = received_data.iter().position(|&b| b == b'\n').unwrap();
-
-                        let command = &received_data[..=pos];
-                        let command = String::from_utf8_lossy(command).trim().to_string();
-                        received_data.drain(..=pos);
-
-                        log(
-                            &msg_tx_clone,
-                            Reply::Device(cfg::name()),
-                            Info,
-                            format!("[{NAME}] Recv: from {addr} '{command}'"),
-                        )
-                        .await;
-
-                        // PUT files_data
-                        if let Some(nas_ip) = command.strip_prefix("PUT files_data ") {
-                            let nas_ip_clone = nas_ip.to_owned();
-
-                            while let Ok(size) = socket.read(&mut buffer).await {
-                                if size == 0 {
-                                    break;
-                                }
-                                received_data.extend_from_slice(&buffer[..size]);
-                            }
-
-                            let files_data_nas_str = std::str::from_utf8(&received_data).unwrap();
-                            let files_data_nas: files_data::FilesData =
-                                serde_json::from_str(files_data_nas_str).unwrap();
-
-                            let dir = Path::new(cfg::FILE_FOLDER);
-                            let files_data_local = files_data::get_files_data(dir);
-
-                            let sync_actions: Vec<SyncAction> =
-                                create_sync_actions(&files_data_nas, &files_data_local);
-
-                            // connect to NAS
-                            for item in &sync_actions {
-                                let mut stream = match TcpStream::connect(format!(
-                                    "{nas_ip_clone}:{SERVER_PORT}"
-                                ))
-                                .await
-                                {
-                                    Ok(s) => s,
-                                    Err(e) => {
-                                        log(
-                                            &msg_tx_clone,
-                                            Reply::Device(cfg::name()),
-                                            Error,
-                                            format!("[{NAME}] Failed to connect to {nas_ip_clone}:{SERVER_PORT}. Err: {e}"),
-                                        )
-                                        .await;
-                                        continue;
-                                    }
-                                };
-
-                                match item.action.as_str() {
-                                    "GET" => {
-                                        log(
-                                            &msg_tx_clone,
-                                            Reply::Device(cfg::name()),
-                                            Info,
-                                            format!(
-                                                "[{NAME}] Sent: {} {}",
-                                                item.action, item.filename
-                                            ),
-                                        )
-                                        .await;
-
-                                        let request = format!("GET {}\n", item.filename);
-                                        stream.write_all(request.as_bytes()).await.unwrap();
-
-                                        let mut buffer = Vec::new();
-                                        stream.read_to_end(&mut buffer).await.unwrap();
-
-                                        if buffer.starts_with(b"ERROR") {
-                                            log(
-                                                &msg_tx_clone,
-                                                Reply::Device(cfg::name()),
-                                                Info,
-                                                format!(
-                                                    "[{NAME}] Failed to GET. Err: {}",
-                                                    String::from_utf8_lossy(&buffer)
-                                                ),
-                                            )
-                                            .await;
-                                            continue;
-                                        }
-
-                                        let filename = Path::new(&item.filename);
-
-                                        // Ensure the parent directories exist
-                                        if let Some(parent) = filename.parent() {
-                                            fs::create_dir_all(parent).unwrap();
-                                        }
-
-                                        let mut file = File::create(filename).unwrap();
-                                        file.write_all(&buffer).unwrap();
-                                        log(
-                                            &msg_tx_clone,
-                                            Reply::Device(cfg::name()),
-                                            Info,
-                                            format!(
-                                                "[{NAME}] Recv: from {nas_ip_clone}, {}",
-                                                item.filename
-                                            ),
-                                        )
-                                        .await;
-                                    }
-                                    "PUT" => {
-                                        log(
-                                            &msg_tx_clone,
-                                            Reply::Device(cfg::name()),
-                                            Info,
-                                            format!(
-                                                "[{NAME}] Sent: {} {}",
-                                                item.action, item.filename
-                                            ),
-                                        )
-                                        .await;
-
-                                        let file = File::open(&item.filename).unwrap();
-                                        let mut reader = BufReader::new(file);
-
-                                        let request = format!("PUT {}\n", item.filename);
-                                        stream.write_all(request.as_bytes()).await.unwrap();
-
-                                        let mut buffer = [0; 4096];
-                                        while let Ok(n) = reader.read(&mut buffer) {
-                                            if n == 0 {
-                                                break;
-                                            }
-                                            stream.write_all(&buffer[..n]).await.unwrap();
-                                        }
-                                    }
-                                    _ => (),
-                                }
-                            }
-
-                            // send END
-                            let mut stream = match TcpStream::connect(format!(
-                                "{nas_ip_clone}:{SERVER_PORT}"
-                            ))
-                            .await
-                            {
-                                Ok(s) => s,
-                                Err(e) => {
-                                    log(
-                                        &msg_tx_clone,
-                                        Reply::Device(cfg::name()),
-                                        Error,
-                                        format!("[{NAME}] Failed to connect to {nas_ip_clone}:{SERVER_PORT}. Err: {e}"),
-                                    )
-                                    .await;
-                                    return;
-                                }
-                            };
-
-                            log(
-                                &msg_tx_clone,
-                                Reply::Device(cfg::name()),
-                                Info,
-                                format!("[{NAME}] Sent: END"),
-                            )
-                            .await;
-
-                            let request = "END\n".to_owned();
-                            stream.write_all(request.as_bytes()).await.unwrap();
-
-                            msg::cmd(
-                                &msg_tx_clone,
-                                Reply::Device(cfg::name()),
-                                NAME.to_owned(),
-                                msg::ACT_NAS.to_owned(),
-                                vec!["sync_local".to_owned(), "true".to_owned()],
-                            )
-                            .await;
-                        }
-                    }
-                    _ => (),
-                }
-            });
-        }
-    });
 }
 
 fn is_ready_to_sync(device_nas: &DevInfoNas) -> bool {
@@ -1096,30 +499,6 @@ fn list_files_recursively(path: &Path) -> Vec<String> {
             let path = entry.path();
             if path.is_dir() {
                 output.extend(list_files_recursively(&path));
-            }
-        }
-    }
-
-    output
-}
-
-fn get_all_files_recursively(path: &Path) -> Vec<String> {
-    let mut output = Vec::new();
-
-    if path.is_dir() {
-        for entry in fs::read_dir(path).unwrap() {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.is_file() {
-                let full_path = path.to_string_lossy().to_string();
-                output.push(full_path);
-            }
-        }
-        for entry in fs::read_dir(path).unwrap() {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.is_dir() {
-                output.extend(get_all_files_recursively(&path));
             }
         }
     }

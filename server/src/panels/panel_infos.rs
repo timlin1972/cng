@@ -9,6 +9,7 @@ use crate::msg::{log, City, Data, DevInfo, Msg, Reply, Worldtime};
 use crate::panels::panels_main::{self, PanelInfo, Popup};
 use crate::utils;
 use crate::{cfg, msg};
+use crate::{error, info, init, unknown};
 
 pub const NAME: &str = "Infos";
 
@@ -367,13 +368,7 @@ impl panels_main::Panel for Panel {
     }
 
     async fn init(&mut self) {
-        log(
-            &self.panel_info.msg_tx,
-            Reply::Device(cfg::name()),
-            Info,
-            format!("[{NAME}] init"),
-        )
-        .await;
+        init!(&self.panel_info.msg_tx, NAME);
 
         let msg_tx_clone = self.panel_info.msg_tx.clone();
         tokio::spawn(async move {
@@ -406,13 +401,7 @@ impl panels_main::Panel for Panel {
                 self.tab_refresh();
             }
             _ => {
-                log(
-                    &self.panel_info.msg_tx,
-                    Reply::Device(cfg::name()),
-                    Error,
-                    format!("[{NAME}] unknown msg: {msg:?}"),
-                )
-                .await;
+                unknown!(&self.panel_info.msg_tx, NAME, msg);
             }
         }
     }
