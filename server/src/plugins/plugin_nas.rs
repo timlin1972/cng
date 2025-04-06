@@ -260,16 +260,8 @@ impl Plugin {
                 .await;
             }
             "remote_modify" => {
-                let filename = cmd.data.get(1).unwrap();
+                // let filename = cmd.data.get(1).unwrap();
                 let remote_modify_time = cmd.data.get(2).unwrap();
-
-                log(
-                    &self.msg_tx,
-                    cmd.reply.clone(),
-                    Info,
-                    format!("[{NAME}] remote_modify: {filename}"),
-                )
-                .await;
 
                 // if I am NAS_CLIENT, send to NAS_SERVER
                 // and if I am synced
@@ -330,7 +322,7 @@ impl Plugin {
                     &self.msg_tx,
                     cmd.reply.clone(),
                     Info,
-                    format!("[{NAME}] ask_sync: {device_name} {device_tailscale_ip}"),
+                    format!("[{NAME}] ask_sync: {device_name}"),
                 )
                 .await;
 
@@ -389,7 +381,7 @@ impl Plugin {
             "remove" => {
                 let filename = cmd.data.get(1).unwrap();
                 if Path::new(filename).exists() {
-                    fs::remove_file(filename).unwrap();
+                    let _ = fs::remove_file(filename);
                     log(
                         &self.msg_tx,
                         cmd.reply.clone(),

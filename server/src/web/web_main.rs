@@ -17,6 +17,7 @@ const API_V1_UPLOAD: &str = "/api/v1/upload";
 use crate::{
     cfg,
     msg::{self, log, Msg, Reply},
+    utils,
 };
 
 const NAME: &str = "web";
@@ -63,6 +64,8 @@ async fn upload_file(mut payload: Multipart, sender: web::Data<Sender<Msg>>) -> 
         let filepath = format!("{}/{filename}", cfg::UPLOAD_FOLDER);
         info!(&sender, format!("[{NAME}] [Go] {filepath}"));
 
+        let start_ts = utils::ts();
+
         let mut f = match File::create(&filepath) {
             Ok(file) => file,
             Err(e) => {
@@ -76,7 +79,14 @@ async fn upload_file(mut payload: Multipart, sender: web::Data<Sender<Msg>>) -> 
             }
         }
 
-        info!(&sender, format!("[{NAME}] [Ok] {filepath}"));
+        let escaped_time = utils::ts() - start_ts;
+        info!(
+            &sender,
+            format!(
+                "[{NAME}] [Ok] {filepath}, {}",
+                utils::transmit_str(f.metadata().unwrap().len(), escaped_time)
+            )
+        );
     }
 
     HttpResponse::Ok().body("Upload complete")

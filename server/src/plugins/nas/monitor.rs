@@ -100,7 +100,7 @@ async fn handle_event(event: Event, msg_tx_clone: &Sender<Msg>) {
 
                 info!(
                     msg_tx_clone,
-                    format!("[{NAME}][monitor] File is modified: {filename}")
+                    format!("[{NAME}] [monitor] File is modified: {filename}")
                 );
 
                 msg::cmd(
@@ -123,7 +123,7 @@ async fn handle_event(event: Event, msg_tx_clone: &Sender<Msg>) {
 
                 info!(
                     msg_tx_clone,
-                    format!("[{NAME}][monitor] File is removed: {filename}")
+                    format!("[{NAME}] [monitor] File is removed: {filename}")
                 );
 
                 msg::cmd(

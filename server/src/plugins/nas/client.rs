@@ -58,11 +58,6 @@ pub fn client(
                         continue;
                     }
 
-                    info!(
-                        &msg_tx_clone,
-                        format!("[{NAME}] Do SYNC_DEVICE for {device_name}")
-                    );
-
                     // Check if the device is already in the last_sync_infos list
                     if let Some(last_sync_info) = last_sync_infos
                         .iter_mut()
@@ -79,6 +74,11 @@ pub fn client(
                             last_sync_time: utils::ts(),
                         });
                     }
+
+                    info!(
+                        &msg_tx_clone,
+                        format!("[{NAME}] Do SYNC_DEVICE for {device_name}")
+                    );
 
                     let files_data = files_data::get_files_data(Path::new(cfg::FILE_FOLDER));
                     let files_data_str = serde_json::to_string(&files_data).unwrap();
@@ -103,20 +103,22 @@ pub fn client(
                         info!(
                             &msg_tx_clone,
                             format!(
-                                "[{NAME}] [Go] Send files_data to: {device_name}:{device_tailscale_ip}, size: {}",
-                                files_data_str.len()
+                                "[{NAME}] [Go] Send files_data to: {device_name}, {}",
+                                utils::format_number(files_data_str.len() as u64)
                             )
                         );
+                        let start_ts = utils::ts();
 
                         let request = format!("PUT files_data {tailscale_ip}\n");
                         stream.write_all(request.as_bytes()).await.unwrap();
                         stream.write_all(files_data_str.as_bytes()).await.unwrap();
 
+                        let escaped_time = utils::ts() - start_ts;
                         info!(
                             &msg_tx_clone,
                             format!(
-                                "[{NAME}] [Ok] Send files_data to: {device_name}:{device_tailscale_ip}, size: {}",
-                                files_data_str.len()
+                                "[{NAME}] [Ok] Send files_data to: {device_name}, {}.",
+                                utils::transmit_str(files_data_str.len() as u64, escaped_time)
                             )
                         );
                     }
@@ -128,7 +130,7 @@ pub fn client(
 
                     let mut idx = 0;
                     loop {
-                        let (mut socket, addr) = listener.accept().await.unwrap();
+                        let (mut socket, _addr) = listener.accept().await.unwrap();
 
                         let mut buffer = [0; BUFFER_SIZE];
                         match timeout(Duration::from_secs(10), socket.read(&mut buffer)).await {
@@ -144,7 +146,7 @@ pub fn client(
 
                                 info!(
                                     &msg_tx_clone,
-                                    format!("[{NAME}] [{idx}] [Go] Recv: from {addr} '{command}'")
+                                    format!("[{NAME}] [{idx}] [Go] Recv: {command}")
                                 );
 
                                 // GET filename
@@ -153,6 +155,8 @@ pub fn client(
                                     if filename.exists() {
                                         match File::open(filename) {
                                             Ok(mut file) => {
+                                                let start_ts = utils::ts();
+
                                                 let mut contents = Vec::new();
                                                 file.read_to_end(&mut contents).unwrap();
                                                 if socket.write_all(&contents).await.is_err() {
@@ -165,6 +169,14 @@ pub fn client(
 
                                                     break;
                                                 }
+
+                                                let escaped_time = utils::ts() - start_ts;
+                                                info!(
+                                                    &msg_tx_clone,
+                                                    format!("[{NAME}] [{idx}] [Ok] Recv: {command}, {}.",
+                                                        utils::transmit_str(contents.len() as u64, escaped_time)
+                                                    )
+                                                );
                                             }
                                             Err(e) => {
                                                 error!(
@@ -190,19 +202,14 @@ pub fn client(
                                         }
                                     }
 
-                                    info!(
-                                        &msg_tx_clone,
-                                        format!(
-                                            "[{NAME}] [{idx}] [Ok] Recv: from {addr} '{command}'"
-                                        )
-                                    );
-
                                     idx += 1;
                                     continue;
                                 }
 
                                 // PUT filename
                                 if let Some(filename) = command.strip_prefix("PUT ") {
+                                    let start_ts = utils::ts();
+
                                     while let Ok(size) = socket.read(&mut buffer).await {
                                         if size == 0 {
                                             break;
@@ -220,10 +227,15 @@ pub fn client(
                                     let mut file = File::create(filename).unwrap();
                                     file.write_all(&received_data).unwrap();
 
+                                    let escaped_time = utils::ts() - start_ts;
                                     info!(
                                         &msg_tx_clone,
                                         format!(
-                                            "[{NAME}] [{idx}] [Ok] Recv: from {addr} '{command}'"
+                                            "[{NAME}] [{idx}] [Ok] Recv: {command}, {}.",
+                                            utils::transmit_str(
+                                                received_data.len() as u64,
+                                                escaped_time
+                                            )
                                         )
                                     );
 

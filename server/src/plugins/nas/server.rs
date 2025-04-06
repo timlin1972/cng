@@ -10,6 +10,7 @@ use tokio::sync::mpsc::Sender;
 use crate::cfg;
 use crate::msg::{self, log, Msg, Reply};
 use crate::plugins::nas::files_data;
+use crate::utils;
 use crate::{error, info, reply_me};
 
 pub const NAME: &str = "nas";
@@ -82,7 +83,7 @@ pub fn server(msg_tx_clone: Sender<Msg>) {
         info!(&msg_tx_clone, format!("[{NAME}] Listening on {listening}"));
 
         loop {
-            let (mut socket, addr) = listener.accept().await.unwrap();
+            let (mut socket, _addr) = listener.accept().await.unwrap();
 
             let msg_tx_clone = msg_tx_clone.clone();
             tokio::spawn(async move {
@@ -98,10 +99,7 @@ pub fn server(msg_tx_clone: Sender<Msg>) {
                         let command = String::from_utf8_lossy(command).trim().to_string();
                         received_data.drain(..=pos);
 
-                        info!(
-                            &msg_tx_clone,
-                            format!("[{NAME}] Recv: from {addr} '{command}'")
-                        );
+                        info!(&msg_tx_clone, format!("[{NAME}] Recv: {command}"));
 
                         // PUT files_data
                         if let Some(nas_ip) = command.strip_prefix("PUT files_data ") {
@@ -117,8 +115,8 @@ pub fn server(msg_tx_clone: Sender<Msg>) {
                             info!(
                                 &msg_tx_clone,
                                 format!(
-                                    "[{NAME}] [Ok] Recv: files_data, size: {}",
-                                    received_data.len()
+                                    "[{NAME}] [Ok] Recv: files_data, {}",
+                                    utils::format_number(received_data.len() as u64)
                                 )
                             );
 
@@ -157,10 +155,13 @@ pub fn server(msg_tx_clone: Sender<Msg>) {
                                         info!(
                                             &msg_tx_clone,
                                             format!(
-                                                "[{NAME}] [Go] [{idx}/{sync_actions_len}] {} {}",
-                                                item.action, item.filename
+                                                "[{NAME}] [Go] [{}/{sync_actions_len}] {} {}",
+                                                idx + 1,
+                                                item.action,
+                                                item.filename
                                             )
                                         );
+                                        let start_ts = utils::ts();
 
                                         let request = format!("GET {}\n", item.filename);
                                         stream.write_all(request.as_bytes()).await.unwrap();
@@ -188,11 +189,19 @@ pub fn server(msg_tx_clone: Sender<Msg>) {
 
                                         let mut file = File::create(filename).unwrap();
                                         file.write_all(&buffer).unwrap();
+
+                                        let escaped_time = utils::ts() - start_ts;
                                         info!(
                                             &msg_tx_clone,
                                             format!(
-                                                "[{NAME}] [Ok] [{idx}/{sync_actions_len}] {} {}",
-                                                item.action, item.filename
+                                                "[{NAME}] [Ok] [{}/{sync_actions_len}] {} {}, {}.",
+                                                idx + 1,
+                                                item.action,
+                                                item.filename,
+                                                utils::transmit_str(
+                                                    buffer.len() as u64,
+                                                    escaped_time
+                                                )
                                             )
                                         );
                                     }
@@ -200,18 +209,31 @@ pub fn server(msg_tx_clone: Sender<Msg>) {
                                         info!(
                                             &msg_tx_clone,
                                             format!(
-                                                "[{NAME}] [Go] [{idx}/{sync_actions_len}] {} {}",
-                                                item.action, item.filename
+                                                "[{NAME}] [Go] [{}/{sync_actions_len}] {} {}",
+                                                idx + 1,
+                                                item.action,
+                                                item.filename
                                             )
                                         );
-
-                                        let file = File::open(&item.filename).unwrap();
+                                        let file = match File::open(&item.filename) {
+                                            Ok(s) => s,
+                                            Err(e) => {
+                                                error!(
+                                                    &msg_tx_clone,
+                                                    format!(
+                                                        "[{NAME}] Failed to PUT {}. Err: {e}.",
+                                                        item.filename
+                                                    )
+                                                );
+                                                continue;
+                                            }
+                                        };
                                         let mut reader = BufReader::new(file);
 
                                         let request = format!("PUT {}\n", item.filename);
                                         stream.write_all(request.as_bytes()).await.unwrap();
 
-                                        let mut buffer = [0; 4096];
+                                        let mut buffer = [0; BUFFER_SIZE];
                                         while let Ok(n) = reader.read(&mut buffer) {
                                             if n == 0 {
                                                 break;
@@ -222,8 +244,10 @@ pub fn server(msg_tx_clone: Sender<Msg>) {
                                         info!(
                                             &msg_tx_clone,
                                             format!(
-                                                "[{NAME}] [Ok] [{idx}/{sync_actions_len}] {} {}",
-                                                item.action, item.filename
+                                                "[{NAME}] [Ok] [{}/{sync_actions_len}] {} {}",
+                                                idx + 1,
+                                                item.action,
+                                                item.filename,
                                             )
                                         );
                                     }
