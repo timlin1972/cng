@@ -158,7 +158,12 @@ impl panels_main::Panel for Panel {
                 }
                 KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     if let Some(filename) = &myself.editor_filename {
-                        std::fs::write(filename, active_popup.output.join("\n")).unwrap();
+                        if let Err(e) = std::fs::write(filename, active_popup.output.join("\n")) {
+                            error!(
+                                &myself.panel_info.msg_tx,
+                                format!("[{NAME}] Failed to write to {filename}. Err: {e}.")
+                            );
+                        }
                     }
                 }
                 KeyCode::Up => {
@@ -322,6 +327,14 @@ impl panels_main::Panel for Panel {
 
                 if active_popup.output.is_empty() {
                     active_popup.output.push("".to_owned());
+                }
+
+                // reset cursor if new file or filename is changed
+                if self.editor_filename.is_none()
+                    || self.editor_filename.as_ref().unwrap() != &filename
+                {
+                    active_popup.cursor_x = Some(0);
+                    active_popup.cursor_y = Some(0);
                 }
 
                 self.editor_filename = Some(filename);
