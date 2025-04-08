@@ -1,9 +1,16 @@
 use std::fs::File;
 use std::io::Write;
+use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_files::Files;
 use actix_multipart::Multipart;
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    http::header::CONTENT_TYPE,
+    web, App, Error, HttpResponse, HttpServer, Responder,
+};
+use futures_util::future::{ok, LocalBoxFuture, Ready};
 use futures_util::StreamExt;
 use log::Level::{Info, Trace};
 use serde::{Deserialize, Serialize};
@@ -22,6 +29,66 @@ use crate::{
 
 const NAME: &str = "web";
 const LISTENING_ON: (&str, u16) = ("0.0.0.0", 9759);
+
+#[derive(Clone)]
+struct CharsetMiddleware;
+
+impl<S, B> Transform<S, ServiceRequest> for CharsetMiddleware
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Transform = CharsetMiddlewareService<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(CharsetMiddlewareService {
+            service: Rc::new(service),
+        })
+    }
+}
+
+struct CharsetMiddlewareService<S> {
+    service: Rc<S>,
+}
+impl<S, B> Service<ServiceRequest> for CharsetMiddlewareService<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&self, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(ctx)
+    }
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let service = Rc::clone(&self.service);
+
+        Box::pin(async move {
+            let mut res = service.call(req).await?;
+
+            if let Some(content_type) = res.headers().get(CONTENT_TYPE) {
+                if let Ok(content_type_str) = content_type.to_str() {
+                    if content_type_str.starts_with("text/")
+                        && !content_type_str.contains("charset")
+                    {
+                        let new_header = format!("{}; charset=utf-8", content_type_str);
+                        res.headers_mut()
+                            .insert(CONTENT_TYPE, new_header.parse().unwrap());
+                    }
+                }
+            }
+
+            Ok(res)
+        })
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Cmd {
@@ -102,7 +169,12 @@ pub async fn run(msg_tx: Sender<Msg>) -> Result<(), Box<dyn std::error::Error>> 
                 .app_data(web::Data::new(msg_tx_clone.clone()))
                 .route(API_V1_CMD, web::post().to(cmd))
                 .route(API_V1_UPLOAD, web::post().to(upload_file))
-                .service(Files::new("/shared", "./shared").show_files_listing())
+                .wrap(CharsetMiddleware)
+                .service(
+                    Files::new("/shared", "./shared")
+                        .show_files_listing()
+                        .prefer_utf8(true),
+                )
                 .service(Files::new("/", "../client/out").index_file("index.html"))
         })
         .bind(LISTENING_ON)
