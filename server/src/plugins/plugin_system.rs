@@ -9,7 +9,7 @@ use crate::{cfg, utils};
 use crate::{error, info, init, reply_me, unknown};
 
 pub const NAME: &str = "system";
-const VERSION: &str = "0.3.2";
+const VERSION: &str = "0.3.3";
 const ONBOARD_POLLING: u64 = 300;
 
 fn get_temperature() -> f32 {
@@ -223,6 +223,15 @@ impl Plugin {
     async fn show(&mut self, cmd: &Cmd) {
         match &cmd.reply {
             Reply::Device(_) => {
+                // device name
+                log(
+                    &self.msg_tx,
+                    cmd.reply.clone(),
+                    Info,
+                    format!("[{NAME}] Device name: {}", self.device.name),
+                )
+                .await;
+
                 // app uptime
                 log(
                     &self.msg_tx,

@@ -107,7 +107,7 @@ pub fn encrypt(key: &str, plaintext: &str) -> Result<String, String> {
     let encoded_ciphertext = general_purpose::STANDARD.encode(&ciphertext);
     let encoded_nonce = general_purpose::STANDARD.encode(nonce);
 
-    Ok(format!("{}:{}", encoded_nonce, encoded_ciphertext))
+    Ok(format!("{encoded_nonce}:{encoded_ciphertext}"))
 }
 
 pub fn decrypt(key: &str, enc_str: &str) -> Result<String, String> {
@@ -137,28 +137,21 @@ pub fn decrypt(key: &str, enc_str: &str) -> Result<String, String> {
         .map_err(|e| format!("Err: Failed to decrypt: {enc_str}, err: {e}"))?;
     String::from_utf8(decrypted_plaintext).map_err(|_| "Decryption failed".to_owned())
 }
-
 pub async fn device_weather() -> String {
-    let response = match reqwest::Client::new()
+    let client = reqwest::Client::new();
+    let response = client
         .get("https://wttr.in/?format=3")
         .timeout(tokio::time::Duration::from_secs(5))
         .send()
-        .await
-    {
-        Ok(response) => response,
-        Err(_) => {
-            return "n/a".to_owned();
-        }
-    };
+        .await;
 
-    let response = match response.text().await {
-        Ok(response) => response,
-        Err(_) => {
-            return "n/a".to_owned();
-        }
-    };
-
-    response.trim().to_owned()
+    match response {
+        Ok(resp) => match resp.text().await {
+            Ok(text) => text.trim().to_owned(),
+            Err(_) => "n/a".to_owned(),
+        },
+        Err(_) => "n/a".to_owned(),
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -179,67 +172,94 @@ pub struct Weather {
 }
 
 pub async fn weather(latitude: f32, longitude: f32) -> Result<Weather, String> {
-    let response = match reqwest::Client::new()
-        .get(format!("https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&current_weather=true"))
+    let client = reqwest::Client::new();
+    let url = format!(
+        "https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&current_weather=true"
+    );
+
+    let response = client
+        .get(url)
         .timeout(tokio::time::Duration::from_secs(5))
         .send()
         .await
+        .map_err(|e| format!("Failed to get weather: {e}"))?;
+
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to get weather: {e}"))?;
+
+    let weather_data: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("Failed to parse weather data: {e}"))?;
+
+    let current = &weather_data["current_weather"];
+    let time = current["time"]
+        .as_str()
+        .ok_or("Missing current_weather.time")?
+        .to_string();
+    let temperature = current["temperature"]
+        .as_f64()
+        .ok_or("Missing or invalid current_weather.temperature")? as f32;
+    let weathercode = current["weathercode"]
+        .as_u64()
+        .ok_or("Missing or invalid current_weather.weathercode")? as u8;
+
+    let (max_temps, min_temps, precip_probs, weather_codes, dates) = (
+        weather_data["daily"]["temperature_2m_max"]
+            .as_array()
+            .ok_or("Missing daily.temperature_2m_max")?,
+        weather_data["daily"]["temperature_2m_min"]
+            .as_array()
+            .ok_or("Missing daily.temperature_2m_min")?,
+        weather_data["daily"]["precipitation_probability_max"]
+            .as_array()
+            .ok_or("Missing daily.precipitation_probability_max")?,
+        weather_data["daily"]["weather_code"]
+            .as_array()
+            .ok_or("Missing daily.weather_code")?,
+        weather_data["daily"]["time"]
+            .as_array()
+            .ok_or("Missing daily.time")?,
+    );
+
+    let len = max_temps.len();
+    if min_temps.len() != len
+        || precip_probs.len() != len
+        || weather_codes.len() != len
+        || dates.len() != len
     {
-        Ok(response) => response,
-        Err(e) => {
-            return Err(format!("Failed to get weather: {e}"));
-        }
-    };
-
-    let response = match response.text().await {
-        Ok(response) => response,
-        Err(e) => {
-            return Err(format!("Failed to get weather: {e}"));
-        }
-    };
-
-    let weather_data: serde_json::Value = match serde_json::from_str(&response) {
-        Ok(weather_data) => weather_data,
-        Err(e) => {
-            return Err(format!("Failed to parse weather data: {e}"));
-        }
-    };
-
-    let mut daily_forecast = Vec::new();
-    if let (Some(max_temps), Some(min_temps), Some(precip_probs), Some(weather_code), Some(dates)) = (
-        weather_data["daily"]["temperature_2m_max"].as_array(),
-        weather_data["daily"]["temperature_2m_min"].as_array(),
-        weather_data["daily"]["precipitation_probability_max"].as_array(),
-        weather_data["daily"]["weather_code"].as_array(),
-        weather_data["daily"]["time"].as_array(),
-    ) {
-        for i in 0..max_temps.len() {
-            let daily = WeatherDaily {
-                time: dates[i].as_str().unwrap().to_owned(),
-                temperature_2m_max: max_temps[i].as_f64().unwrap() as f32,
-                temperature_2m_min: min_temps[i].as_f64().unwrap() as f32,
-                precipitation_probability_max: precip_probs[i].as_f64().unwrap() as u8,
-                weather_code: weather_code[i].as_u64().unwrap() as u8,
-            };
-            daily_forecast.push(daily);
-        }
+        return Err("Mismatch in forecast array lengths".to_string());
     }
 
-    let weather = Weather {
-        time: weather_data["current_weather"]["time"]
-            .as_str()
-            .unwrap()
-            .to_owned(),
-        temperature: weather_data["current_weather"]["temperature"]
-            .as_f64()
-            .unwrap() as f32,
-        weathercode: weather_data["current_weather"]["weathercode"]
-            .as_u64()
-            .unwrap() as u8,
-        daily: daily_forecast,
-    };
+    let mut daily_forecast = Vec::new();
+    for i in 0..len {
+        let daily = WeatherDaily {
+            time: dates[i]
+                .as_str()
+                .ok_or("Invalid daily.time")?
+                .to_string(),
+            temperature_2m_max: max_temps[i]
+                .as_f64()
+                .ok_or("Invalid temperature_2m_max")? as f32,
+            temperature_2m_min: min_temps[i]
+                .as_f64()
+                .ok_or("Invalid temperature_2m_min")? as f32,
+            precipitation_probability_max: precip_probs[i]
+                .as_f64()
+                .ok_or("Invalid precipitation_probability_max")? as u8,
+            weather_code: weather_codes[i]
+                .as_u64()
+                .ok_or("Invalid weather_code")? as u8,
+        };
+        daily_forecast.push(daily);
+    }
 
-    Ok(weather)
+    Ok(Weather {
+        time,
+        temperature,
+        weathercode,
+        daily: daily_forecast,
+    })
 }
 
 const WEATHER_CODES: [(u8, &str); 28] = [
@@ -319,32 +339,30 @@ pub fn weather_code_emoji(code: u8) -> &'static str {
         .map(|&(_, desc)| desc)
         .unwrap_or("未知天氣")
 }
-
 pub async fn get_city_time(city: &str) -> Result<String, String> {
-    let response = match reqwest::Client::new()
-        .get(format!(
-            "http://timeapi.io/api/timezone/zone?timeZone={city}"
-        ))
+    let url = reqwest::Url::parse_with_params(
+        "http://timeapi.io/api/timezone/zone",
+        &[("timeZone", city)],
+    ).map_err(|e| format!("Invalid URL: {e}"))?;
+
+    let response = reqwest::Client::new()
+        .get(url)
         .timeout(tokio::time::Duration::from_secs(10))
         .send()
         .await
-    {
-        Ok(response) => response,
-        Err(e) => {
-            return Err(format!("Failed to get worldtime: {e}"));
-        }
-    };
+        .map_err(|e| format!("Failed to send request: {e}"))?;
 
-    let response = match response.text().await {
-        Ok(response) => response,
-        Err(e) => {
-            return Err(format!("Failed to get worldtime: {e}"));
-        }
-    };
+    let worldtime: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse worldtime JSON: {e}"))?;
 
-    let worldtime: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let current_time = worldtime["currentLocalTime"]
+        .as_str()
+        .ok_or_else(|| "Missing 'currentLocalTime' field".to_string())?
+        .to_owned();
 
-    Ok(worldtime["currentLocalTime"].as_str().unwrap().to_owned())
+    Ok(current_time)
 }
 
 // convert YYYY-MM-DDTHH:MM:SS.ffffff to YYYY/MM/DD HH:MM:SS
